@@ -1,0 +1,11 @@
+{
+  "version": "1.0",
+  "apis": [
+    {
+      "identifier": "sprintpay",
+      "source": "@sprintpay/v1.0#21i83n6bsmhnf5fsg",
+      "integrity": "sha512-kWZl24hhq89pmJMFQOERC5uoCpolRtTqD60+FEJiwEOLvWg/lMrqsOOwQKrqPCjq2dqadcyjXYwb7thC1BlPGA==",
+      "installerVersion": "6.1.3"
+    }
+  ]
+}
