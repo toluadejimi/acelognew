@@ -12,7 +12,7 @@ class TransactionController extends Controller
     /** Admin: all transactions */
     public function index(): JsonResponse
     {
-        $transactions = Transaction::with('user')->orderByDesc('created_at')->get();
+        $transactions = Transaction::with('user')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($transactions->map(fn (Transaction $t) => [
             'id' => $t->id,
             'user_id' => (string) $t->user_id,

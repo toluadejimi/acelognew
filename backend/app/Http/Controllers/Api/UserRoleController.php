@@ -12,7 +12,7 @@ class UserRoleController extends Controller
 {
     public function index(): JsonResponse
     {
-        $roles = UserRole::with('user')->orderByDesc('created_at')->get();
+        $roles = UserRole::with('user')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($roles->map(fn (UserRole $r) => [
             'id' => $r->id,
             'user_id' => (string) $r->user_id,

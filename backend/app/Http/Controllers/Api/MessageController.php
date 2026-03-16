@@ -37,7 +37,7 @@ class MessageController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $messages = Message::orderBy('created_at')->get();
+        $messages = Message::orderBy('created_at')->limit(5000)->get();
         return response()->json($this->mapMessages($messages));
     }
 

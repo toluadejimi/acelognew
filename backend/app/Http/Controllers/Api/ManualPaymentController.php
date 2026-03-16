@@ -73,7 +73,7 @@ class ManualPaymentController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $payments = ManualPayment::with('user')->orderByDesc('created_at')->get();
+        $payments = ManualPayment::with('user')->orderByDesc('created_at')->limit(2000)->get();
         return response()->json($this->mapPayments($payments));
     }
 

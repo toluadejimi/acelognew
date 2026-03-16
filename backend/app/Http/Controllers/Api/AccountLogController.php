@@ -12,8 +12,18 @@ class AccountLogController extends Controller
 {
     public function index(): JsonResponse
     {
-        $logs = AccountLog::with(['product', 'order'])->orderByDesc('created_at')->get();
-        return response()->json($this->mapLogs($logs));
+        $limit = (int) request('limit', 2000);
+        $limit = min(max(1, $limit), 5000);
+
+        $logs = AccountLog::orderByDesc('created_at')->limit($limit)->get();
+        $total = AccountLog::count();
+        $unsold = AccountLog::where('is_sold', false)->count();
+
+        return response()->json([
+            'logs' => $this->mapLogs($logs),
+            'total' => $total,
+            'unsold' => $unsold,
+        ]);
     }
 
     public function byOrder(Request $request, Order $order): JsonResponse

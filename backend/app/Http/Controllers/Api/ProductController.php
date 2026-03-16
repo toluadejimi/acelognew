@@ -21,7 +21,7 @@ class ProductController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $products = Product::with('category')->orderByDesc('created_at')->get();
+        $products = Product::with('category')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($this->mapProducts($products));
     }
 

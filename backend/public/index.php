@@ -5,6 +5,11 @@ use Illuminate\Http\Request;
 
 define('LARAVEL_START', microtime(true));
 
+// Prevent memory exhaustion when admin loads large datasets (profiles, orders, etc.)
+if (function_exists('ini_set')) {
+    @ini_set('memory_limit', '256M');
+}
+
 // Determine if the application is in maintenance mode...
 if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php')) {
     require $maintenance;

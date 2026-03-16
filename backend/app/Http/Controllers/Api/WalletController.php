@@ -24,7 +24,7 @@ class WalletController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $wallets = Wallet::with('user')->get();
+        $wallets = Wallet::with('user')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($wallets->map(fn (Wallet $w) => [
             'id' => $w->id,
             'user_id' => (string) $w->user_id,

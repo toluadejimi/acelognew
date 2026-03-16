@@ -857,7 +857,7 @@ const [payLoading, setPayLoading] = useState(false);
                   setVaPhone("");
                   toast.success("Account details ready. Transfer the amount to credit your wallet.");
                 } catch (e) {
-                  const msg = e instanceof Error ? e.message : "Something went wrong. Try again.";
+                  const msg = (e as { message?: string })?.message || (e instanceof Error ? e.message : "Something went wrong. Try again.");
                   toast.error(msg);
                   console.error("Virtual account error:", e);
                 } finally {
@@ -1878,8 +1878,9 @@ const [payLoading, setPayLoading] = useState(false);
                     });
                     toast.success("Account details ready. Transfer the amount to credit your wallet.");
                   }
-                } catch {
-                  toast.error("Something went wrong. Try again.");
+                } catch (e) {
+                  const msg = (e as { message?: string })?.message || "Something went wrong. Try again.";
+                  toast.error(msg);
                 } finally {
                   setVaLoading(false);
                 }

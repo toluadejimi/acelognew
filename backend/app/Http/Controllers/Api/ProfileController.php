@@ -33,7 +33,7 @@ class ProfileController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $profiles = Profile::with('user')->orderByDesc('created_at')->get();
+        $profiles = Profile::with('user')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($profiles->map(fn (Profile $p) => [
             'id' => $p->id,
             'user_id' => (string) $p->user_id,

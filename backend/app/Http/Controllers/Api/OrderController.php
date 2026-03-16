@@ -48,7 +48,7 @@ class OrderController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        $orders = Order::with('user', 'product')->orderByDesc('created_at')->get();
+        $orders = Order::with('user', 'product')->orderByDesc('created_at')->limit(5000)->get();
         return response()->json($this->mapOrders($orders));
     }
 

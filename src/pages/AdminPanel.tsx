@@ -146,6 +146,7 @@ export default function AdminPanel() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [accountLogs, setAccountLogs] = useState<AccountLog[]>([]);
+  const [logStats, setLogStats] = useState({ total: 0, unsold: 0 });
   const [bankDetails, setBankDetails] = useState<BankDetail[]>([]);
   const [siteSettings, setSiteSettings] = useState<{ key: string, value: string }[]>([]);
 
@@ -190,7 +191,7 @@ export default function AdminPanel() {
         api<Transaction[]>("/admin/transactions"),
         api<UserRole[]>("/admin/user-roles"),
         api<Message[]>("/admin/messages"),
-        api<AccountLog[]>("/admin/account-logs"),
+        api<{ logs: AccountLog[]; total: number; unsold: number }>("/admin/account-logs"),
         api<BankDetail[]>("/admin/bank-details"),
         api<{ key: string; value: string }[]>("/admin/site-settings"),
         api<BroadcastMessage[]>("/admin/broadcast-messages"),
@@ -203,7 +204,16 @@ export default function AdminPanel() {
       setTransactions(Array.isArray(t) ? t : []);
       setRoles(Array.isArray(r) ? r : []);
       setAllMessages(Array.isArray(m) ? m : []);
-      setAccountLogs(Array.isArray(al) ? al : []);
+      if (al && typeof al === "object" && "logs" in al && Array.isArray((al as { logs: AccountLog[] }).logs)) {
+        setAccountLogs((al as { logs: AccountLog[]; total?: number; unsold?: number }).logs);
+        setLogStats({ total: (al as { total: number }).total ?? 0, unsold: (al as { unsold: number }).unsold ?? 0 });
+      } else if (Array.isArray(al)) {
+        setAccountLogs(al);
+        setLogStats({ total: al.length, unsold: al.filter((l: AccountLog) => !l.is_sold).length });
+      } else {
+        setAccountLogs([]);
+        setLogStats({ total: 0, unsold: 0 });
+      }
       setBankDetails(Array.isArray(bd) ? bd : []);
       setSiteSettings(Array.isArray(ss) ? ss : []);
       setBroadcasts(Array.isArray(bc) ? bc : []);
@@ -987,8 +997,8 @@ export default function AdminPanel() {
                 </div>
                 <div className="admin-stat-card">
                   <div className="admin-stat-label">Account logs</div>
-                  <div className="admin-stat-val">{accountLogs.length}</div>
-                  <div className="admin-stat-sub">{accountLogs.filter(l => !l.is_sold).length} available</div>
+                  <div className="admin-stat-val">{logStats.total}</div>
+                  <div className="admin-stat-sub">{logStats.unsold} available</div>
                 </div>
                 <div className="admin-stat-card">
                   <div className="admin-stat-label">Categories</div>

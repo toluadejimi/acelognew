@@ -38,6 +38,30 @@ class VirtualAccountController extends Controller
         }
         $apiKey = config('services.sprintpay.key');
         $apiSecret = config('services.sprintpay.secret');
+
+        // Development stub: when SprintPay is not configured but app is in debug mode, create a fake VA for testing
+        if ((empty($apiKey) || empty($apiSecret)) && config('app.debug')) {
+            $fakeAccountNo = 'DEV' . str_pad((string) $user->id, 10, '0');
+            VirtualAccount::updateOrCreate(
+                ['user_id' => $user->id],
+                [
+                    'email' => $email,
+                    'account_no' => $fakeAccountNo,
+                    'account_name' => $accountName,
+                    'bank_name' => 'SprintPay (Dev)',
+                    'phone' => $phone ?: null,
+                ]
+            );
+            return response()->json([
+                'success' => true,
+                'account_no' => $fakeAccountNo,
+                'account_name' => $accountName,
+                'bank_name' => 'SprintPay (Dev)',
+                'amount' => (float) ($request->input('amount', 0)),
+                'existing' => false,
+            ]);
+        }
+
         if (empty($apiKey) || empty($apiSecret)) {
             return response()->json([
                 'success' => false,

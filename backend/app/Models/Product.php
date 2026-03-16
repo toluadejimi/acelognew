@@ -14,7 +14,7 @@ class Product extends Model
 
     protected $fillable = [
         'category_id', 'title', 'description', 'price', 'currency', 'platform',
-        'stock', 'is_active', 'image_url', 'sample_link',
+        'stock', 'is_active', 'image_url', 'sample_link', 'legacy_id',
     ];
 
     protected function casts(): array
