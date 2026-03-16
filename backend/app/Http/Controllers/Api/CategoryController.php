@@ -66,7 +66,15 @@ class CategoryController extends Controller
             ], 422);
         }
 
-        $path = $file->store('category_images', 'public');
+        // Manually move file without calling hashName()/store() (which rely on fileinfo)
+        $filename = uniqid('cat_', true) . '.' . $ext;
+        $targetDir = storage_path('app/public/category_images');
+        if (! is_dir($targetDir)) {
+            @mkdir($targetDir, 0755, true);
+        }
+        $file->move($targetDir, $filename);
+
+        $path = 'category_images/' . $filename;
         $url = asset('storage/' . $path);
 
         return response()->json(['url' => $url]);
