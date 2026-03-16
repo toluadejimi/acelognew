@@ -16,10 +16,20 @@ if (file_exists($maintenance = __DIR__.'/../storage/framework/maintenance.php'))
 }
 
 // Register the Composer autoloader...
-require __DIR__.'/../vendor/autoload.php';
+// Support both standard Laravel layout (public/../vendor)
+// and shared-hosting layout where Laravel lives in a "backend" subfolder.
+$autoload = __DIR__.'/../vendor/autoload.php';
+if (! file_exists($autoload) && file_exists(__DIR__.'/backend/vendor/autoload.php')) {
+    $autoload = __DIR__.'/backend/vendor/autoload.php';
+}
+require $autoload;
 
 // Bootstrap Laravel and handle the request...
 /** @var Application $app */
-$app = require_once __DIR__.'/../bootstrap/app.php';
+$bootstrap = __DIR__.'/../bootstrap/app.php';
+if (! file_exists($bootstrap) && file_exists(__DIR__.'/backend/bootstrap/app.php')) {
+    $bootstrap = __DIR__.'/backend/bootstrap/app.php';
+}
+$app = require_once $bootstrap;
 
 $app->handleRequest(Request::capture());

@@ -20,6 +20,8 @@ interface ModalData {
   priceNum?: number;
 }
 
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 interface Category {
   id: string;
   name: string;
@@ -483,9 +485,17 @@ const [payLoading, setPayLoading] = useState(false);
     LinkedIn: "fa-brands fa-linkedin", Discord: "fa-brands fa-discord",
     Gmail: "fa-brands fa-google", Telegram: "fa-brands fa-telegram",
   };
+  const resolveImageUrl = (url: string | null): string | null => {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (!API_BASE) return url;
+    return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
   const getCatIcon = (cat: Category) => {
-    if (cat.image_url) {
-      return <img src={cat.image_url} alt={cat.name} style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />;
+    const url = resolveImageUrl(cat.image_url);
+    if (url) {
+      return <img src={url} alt={cat.name} style={{ width: 24, height: 24, borderRadius: 6, objectFit: "cover" }} />;
     }
     const prods = getProductsForCategory(cat.id);
     if (prods.length > 0 && platformIconMap[prods[0].platform]) return <i className={platformIconMap[prods[0].platform]} />;
@@ -496,11 +506,13 @@ const [payLoading, setPayLoading] = useState(false);
     currency === "NGN" ? `₦${price.toLocaleString("en-NG")}` : `${currency} ${price.toLocaleString("en-NG")}`;
 
   const getProductImage = (product: Product, cat?: Category | null) => {
-    if (product.image_url) {
-      return <img src={product.image_url} alt={product.title} style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />;
+    const productUrl = resolveImageUrl(product.image_url);
+    if (productUrl) {
+      return <img src={productUrl} alt={product.title} style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />;
     }
-    if (cat?.image_url) {
-      return <img src={cat.image_url} alt={product.title} style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />;
+    const catUrl = resolveImageUrl(cat?.image_url ?? null);
+    if (catUrl) {
+      return <img src={catUrl} alt={product.title} style={{ width: 40, height: 40, borderRadius: 10, objectFit: "cover" }} />;
     }
     if (platformIconMap[product.platform]) {
       return <i className={platformIconMap[product.platform]} />;
