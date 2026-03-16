@@ -68,9 +68,16 @@ class CategoryController extends Controller
 
         // Manually move file without calling hashName()/store() (which rely on fileinfo)
         $filename = uniqid('cat_', true) . '.' . $ext;
-        $targetDir = storage_path('app/public/category_images');
+
+        // On shared hosting, writing directly into public/storage is often more reliable
+        $targetDir = public_path('storage/category_images');
         if (! is_dir($targetDir)) {
             @mkdir($targetDir, 0755, true);
+        }
+        if (! is_writable($targetDir)) {
+            return response()->json([
+                'message' => 'Upload directory is not writable on the server.',
+            ], 500);
         }
         $file->move($targetDir, $filename);
 
