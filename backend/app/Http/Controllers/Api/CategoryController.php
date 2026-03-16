@@ -53,7 +53,8 @@ class CategoryController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        $request->validate(['file' => ['required', 'file', 'image']]);
+        // Use explicit mimes instead of the generic "image" rule to avoid relying on php_fileinfo
+        $request->validate(['file' => ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif']]);
         $path = $request->file('file')->store('category_images', 'public');
         $url = asset('storage/' . $path);
         return response()->json(['url' => $url]);
