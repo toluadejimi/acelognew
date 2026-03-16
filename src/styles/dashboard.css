@@ -132,12 +132,12 @@
 }
 
 :root {
-  /* Ace Log Store: dark navy + neon green */
+  /* Ace Log Store: dark navy + slightly deeper green for better text contrast */
   --db-navy: 220 25% 8%;
   --db-navy-light: 220 20% 12%;
-  --db-green: 105 100% 50%;
-  --db-green-dim: 105 100% 50% / 0.12;
-  --db-green-border: 105 100% 50% / 0.35;
+  --db-green: 105 100% 42%;
+  --db-green-dim: 105 100% 42% / 0.12;
+  --db-green-border: 105 100% 42% / 0.35;
   --db-blue: 220 25% 12%;
   --db-blue-light: 105 100% 50%;
   --db-blue-dim: 105 100% 50% / 0.1;
@@ -158,9 +158,9 @@
 [data-theme="dark"] {
   --db-navy: 220 25% 8%;
   --db-navy-light: 220 20% 14%;
-  --db-green: 105 100% 50%;
-  --db-green-dim: 105 100% 50% / 0.15;
-  --db-green-border: 105 100% 50% / 0.35;
+  --db-green: 105 100% 42%;
+  --db-green-dim: 105 100% 42% / 0.15;
+  --db-green-border: 105 100% 42% / 0.35;
   --db-blue: 220 25% 12%;
   --db-blue-light: 105 100% 50%;
   --db-blue-dim: 105 100% 50% / 0.12;

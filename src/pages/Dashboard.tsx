@@ -1122,11 +1122,19 @@ const [payLoading, setPayLoading] = useState(false);
                     {getProductsForCategory(selectedCategory.id).filter(p => filterBySearch(p.title + p.description)).map((product) => (
                       <div key={product.id} className="account-row">
                         <div className="acc-platform-icon">
-                          {product.image_url ? (
-                            <img src={product.image_url} alt={product.title} style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover" }} />
-                          ) : (
-                            getProductImage(product, selectedCategory)
-                          )}
+                          {(() => {
+                            const url = resolveImageUrl(product.image_url);
+                            if (url) {
+                              return (
+                                <img
+                                  src={url}
+                                  alt={product.title}
+                                  style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover" }}
+                                />
+                              );
+                            }
+                            return getProductImage(product, selectedCategory);
+                          })()}
                         </div>
                         <div className="acc-content">
                           <div className="acc-info">
@@ -1315,11 +1323,19 @@ const [payLoading, setPayLoading] = useState(false);
                         {prods.map((product) => (
                           <div key={product.id} className="account-row">
                             <div className="acc-platform-icon">
-                              {product.image_url ? (
-                                <img src={product.image_url} alt={product.title} style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover" }} />
-                              ) : (
-                                getProductImage(product, cat)
-                              )}
+                              {(() => {
+                                const url = resolveImageUrl(product.image_url);
+                                if (url) {
+                                  return (
+                                    <img
+                                      src={url}
+                                      alt={product.title}
+                                      style={{ width: 44, height: 44, borderRadius: 12, objectFit: "cover" }}
+                                    />
+                                  );
+                                }
+                                return getProductImage(product, cat);
+                              })()}
                             </div>
                             <div className="acc-content">
                               <div className="acc-info">
