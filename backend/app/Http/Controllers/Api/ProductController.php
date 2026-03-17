@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\AccountLog;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +17,8 @@ class ProductController extends Controller
             $query->where('category_id', $request->category_id);
         }
         $products = $query->orderBy('title')->get();
-        return response()->json($this->mapProducts($products));
+        $stockByProduct = $this->getUnsoldCountByProductId($products->pluck('id')->all());
+        return response()->json($this->mapProducts($products, $stockByProduct));
     }
 
     public function adminIndex(): JsonResponse
@@ -123,13 +125,33 @@ class ProductController extends Controller
         return response()->json(['created' => count($created), 'products' => $created], 201);
     }
 
-    private function mapProducts($products): array
+    /**
+     * Get unsold account log count per product (for accurate frontend stock).
+     */
+    private function getUnsoldCountByProductId(array $productIds): array
     {
-        return $products->map(fn ($p) => $this->mapProduct($p))->values()->all();
+        if (empty($productIds)) {
+            return [];
+        }
+        $rows = AccountLog::query()
+            ->whereIn('product_id', $productIds)
+            ->where('is_sold', false)
+            ->selectRaw('product_id, count(*) as c')
+            ->groupBy('product_id')
+            ->get();
+        return $rows->pluck('c', 'product_id')->all();
     }
 
-    private function mapProduct(Product $p): array
+    private function mapProducts($products, array $stockByProduct = []): array
     {
+        return $products->map(fn ($p) => $this->mapProduct($p, $stockByProduct))->values()->all();
+    }
+
+    private function mapProduct(Product $p, array $stockByProduct = []): array
+    {
+        $stock = isset($stockByProduct[$p->id])
+            ? (int) $stockByProduct[$p->id]
+            : (int) $p->stock;
         return [
             'id' => $p->id,
             'category_id' => $p->category_id,
@@ -138,7 +160,7 @@ class ProductController extends Controller
             'price' => (float) $p->price,
             'currency' => $p->currency,
             'platform' => $p->platform,
-            'stock' => (int) $p->stock,
+            'stock' => $stock,
             'is_active' => $p->is_active,
             'image_url' => $p->image_url,
             'sample_link' => $p->sample_link,
