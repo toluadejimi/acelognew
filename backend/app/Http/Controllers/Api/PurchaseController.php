@@ -65,6 +65,7 @@ class PurchaseController extends Controller
                     'password' => $log->password,
                 ];
             }
+            Product::refreshStockFromLogs($product->id);
             Transaction::create([
                 'user_id' => $user->id,
                 'amount' => -$totalPrice,

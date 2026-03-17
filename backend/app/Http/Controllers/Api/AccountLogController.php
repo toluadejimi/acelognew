@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\AccountLog;
 use App\Models\Order;
+use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -47,12 +48,15 @@ class AccountLogController extends Controller
             'password' => ['required', 'string'],
         ]);
         $log = AccountLog::create($validated);
+        Product::refreshStockFromLogs($log->product_id);
         return response()->json($this->mapLog($log), 201);
     }
 
     public function destroy(AccountLog $accountLog): JsonResponse
     {
+        $productId = $accountLog->product_id;
         $accountLog->delete();
+        Product::refreshStockFromLogs($productId);
         return response()->json(null, 204);
     }
 
@@ -70,6 +74,9 @@ class AccountLogController extends Controller
             'login' => $l['login'],
             'password' => $l['password'] ?? '',
         ]));
+        foreach ($created->pluck('product_id')->unique() as $productId) {
+            Product::refreshStockFromLogs($productId);
+        }
         return response()->json($created->map(fn ($l) => $this->mapLog($l))->values()->all(), 201);
     }
 
