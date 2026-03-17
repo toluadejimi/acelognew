@@ -31,24 +31,33 @@ class ProfileController extends Controller
         return response()->json($profile->fresh());
     }
 
-    public function adminIndex(): JsonResponse
+    public function adminIndex(Request $request): JsonResponse
     {
-        // Load all users with wallet so admin list shows correct balance for every user
-        $profiles = Profile::with(['user', 'user.wallet'])->orderByDesc('created_at')->get();
-        $total = $profiles->count();
+        // Paginate to avoid loading 40k+ rows (memory/timeout → 500). One page per request.
+        $perPage = min(100, max(1, (int) $request->input('per_page', 50)));
+        $page = max(1, (int) $request->input('page', 1));
+
+        $paginator = Profile::with(['user', 'user.wallet'])
+            ->orderByDesc('created_at')
+            ->paginate($perPage, ['*'], 'page', $page);
+
+        $profiles = $paginator->getCollection()->map(fn (Profile $p) => [
+            'id' => $p->id,
+            'user_id' => (string) $p->user_id,
+            'username' => $p->username,
+            'email' => $p->user?->email,
+            'avatar_url' => $p->avatar_url,
+            'is_blocked' => $p->is_blocked,
+            'created_at' => $p->created_at?->toIso8601String(),
+            'balance' => (float) ($p->user?->wallet?->balance ?? 0),
+        ])->values()->all();
 
         return response()->json([
-            'profiles' => $profiles->map(fn (Profile $p) => [
-                'id' => $p->id,
-                'user_id' => (string) $p->user_id,
-                'username' => $p->username,
-                'email' => $p->user?->email,
-                'avatar_url' => $p->avatar_url,
-                'is_blocked' => $p->is_blocked,
-                'created_at' => $p->created_at?->toIso8601String(),
-                'balance' => (float) ($p->user?->wallet?->balance ?? 0),
-            ])->values()->all(),
-            'total' => $total,
+            'profiles' => $profiles,
+            'total' => $paginator->total(),
+            'current_page' => $paginator->currentPage(),
+            'last_page' => $paginator->lastPage(),
+            'per_page' => $paginator->perPage(),
         ]);
     }
 

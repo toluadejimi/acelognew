@@ -139,6 +139,8 @@ export default function AdminPanel() {
   const [search, setSearch] = useState("");
   const [usersPage, setUsersPage] = useState(1);
   const USERS_PER_PAGE = 50;
+  const [ordersPage, setOrdersPage] = useState(1);
+  const ORDERS_PER_PAGE = 50;
   const [productSearch, setProductSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
@@ -186,12 +188,32 @@ export default function AdminPanel() {
   const [editBroadcast, setEditBroadcast] = useState<BroadcastMessage | null>(null);
   const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", is_active: true });
   const [usersTotal, setUsersTotal] = useState(0);
+  const [usersLastPage, setUsersLastPage] = useState(1);
   useEffect(() => { loadAll(); }, []);
+
+  const fetchProfilesPage = async (page: number) => {
+    try {
+      const res = await api<{ profiles: Profile[]; total: number; current_page: number; last_page: number; per_page: number }>(
+        `/admin/profiles?page=${page}&per_page=${USERS_PER_PAGE}`
+      );
+      const list = Array.isArray(res.profiles) ? res.profiles : [];
+      setProfiles(list);
+      setUsersTotal(typeof res.total === "number" ? res.total : 0);
+      setUsersLastPage(typeof res.last_page === "number" ? res.last_page : 1);
+      setUsersPage(page);
+    } catch (e) {
+      console.error("fetchProfilesPage:", e);
+      toast.error("Failed to load users");
+    }
+  };
+
+  useEffect(() => {
+    if (tab === "users") fetchProfilesPage(1);
+  }, [tab]);
 
   const loadAll = async () => {
     try {
-      const [p, w, o, pr, c, t, r, m, al, bd, ss, bc] = await Promise.all([
-        api<Profile[] | { profiles: Profile[]; total: number }>("/admin/profiles"),
+      const [w, o, pr, c, t, r, m, al, bd, ss, bc] = await Promise.all([
         api<Wallet[]>("/admin/wallets"),
         api<Order[]>("/admin/orders"),
         api<Product[]>("/admin/products"),
@@ -204,16 +226,6 @@ export default function AdminPanel() {
         api<{ key: string; value: string }[]>("/admin/site-settings"),
         api<BroadcastMessage[]>("/admin/broadcast-messages"),
       ]);
-      if (p && typeof p === "object" && !Array.isArray(p) && "profiles" in p) {
-        const obj = p as { profiles?: Profile[]; total?: number };
-        const list = Array.isArray(obj.profiles) ? obj.profiles : [];
-        setProfiles(list);
-        setUsersTotal(typeof obj.total === "number" ? obj.total : list.length);
-      } else {
-        const list = Array.isArray(p) ? p : [];
-        setProfiles(list);
-        setUsersTotal(list.length);
-      }
       setWallets(Array.isArray(w) ? w : []);
       setOrders(Array.isArray(o) ? o : []);
       setProducts(Array.isArray(pr) ? pr : []);
@@ -736,11 +748,15 @@ export default function AdminPanel() {
     !search || getProductTitle(l.product_id).toLowerCase().includes(search.toLowerCase()) || l.login.toLowerCase().includes(search.toLowerCase())
   );
 
-  const totalUserPages = Math.max(1, Math.ceil(filteredProfiles.length / USERS_PER_PAGE));
+  const totalUserPages = Math.max(1, usersLastPage);
   const currentUsersPage = Math.min(usersPage, totalUserPages);
-  const paginatedProfiles = filteredProfiles.slice(
-    (currentUsersPage - 1) * USERS_PER_PAGE,
-    currentUsersPage * USERS_PER_PAGE
+  const paginatedProfiles = filteredProfiles;
+
+  const totalOrderPages = Math.max(1, Math.ceil(filteredOrders.length / ORDERS_PER_PAGE));
+  const currentOrdersPage = Math.min(ordersPage, totalOrderPages);
+  const paginatedOrders = filteredOrders.slice(
+    (currentOrdersPage - 1) * ORDERS_PER_PAGE,
+    currentOrdersPage * ORDERS_PER_PAGE
   );
 
   const filteredProducts = products.filter((p) => {
@@ -1327,14 +1343,14 @@ export default function AdminPanel() {
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
                             className="admin-btn admin-btn-sm"
-                            onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                            onClick={() => fetchProfilesPage(currentUsersPage - 1)}
                             disabled={currentUsersPage === 1}
                           >
                             ← Prev
                           </button>
                           <button
                             className="admin-btn admin-btn-sm"
-                            onClick={() => setUsersPage((p) => Math.min(totalUserPages, p + 1))}
+                            onClick={() => fetchProfilesPage(currentUsersPage + 1)}
                             disabled={currentUsersPage === totalUserPages}
                           >
                             Next →
@@ -1388,7 +1404,7 @@ export default function AdminPanel() {
                 <table className="admin-table">
                   <thead><tr><th>ID</th><th>User</th><th>Product</th><th>Platform</th><th>Amount</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {filteredOrders.map((o) => (
+                    {paginatedOrders.map((o) => (
                       <tr key={o.id}>
                         <td>#{o.id.slice(0, 6)}</td>
                         <td style={{ cursor: "pointer", color: "hsl(230 65% 55%)", fontWeight: 600 }} onClick={() => {
@@ -1414,7 +1430,7 @@ export default function AdminPanel() {
               </div>
 
               <div className="admin-card-list">
-                {filteredOrders.map((o) => (
+                {paginatedOrders.map((o) => (
                   <div className="admin-card-item" key={o.id}>
                     <div className="admin-card-item-row"><span className="admin-card-item-label">ID</span><span className="admin-card-item-value">#{o.id.slice(0, 6)}</span></div>
                     <div className="admin-card-item-row"><span className="admin-card-item-label">User</span><span className="admin-card-item-value" style={{ color: "hsl(230 65% 55%)", cursor: "pointer" }} onClick={() => {
@@ -1432,6 +1448,30 @@ export default function AdminPanel() {
                 ))}
                 {filteredOrders.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">📦</div>No orders</div>}
               </div>
+
+              {filteredOrders.length > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 13 }}>
+                  <span>
+                    Page {currentOrdersPage.toLocaleString()} of {totalOrderPages.toLocaleString()}
+                  </span>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      className="admin-btn admin-btn-sm"
+                      onClick={() => setOrdersPage((p) => Math.max(1, p - 1))}
+                      disabled={currentOrdersPage === 1}
+                    >
+                      ← Prev
+                    </button>
+                    <button
+                      className="admin-btn admin-btn-sm"
+                      onClick={() => setOrdersPage((p) => Math.min(totalOrderPages, p + 1))}
+                      disabled={currentOrdersPage === totalOrderPages}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           )}
 
