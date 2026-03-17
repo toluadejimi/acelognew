@@ -16,9 +16,11 @@ class WalletController extends Controller
         if (!$wallet) {
             $wallet = Wallet::create(['user_id' => $request->user()->id]);
         }
+        // Always read latest balance from DB (avoid stale relation/cache)
+        $wallet->refresh();
         return response()->json([
             'balance' => (float) $wallet->balance,
-            'currency' => $wallet->currency,
+            'currency' => $wallet->currency ?? 'NGN',
         ]);
     }
 

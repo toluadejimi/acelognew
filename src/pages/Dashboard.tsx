@@ -223,26 +223,38 @@ const [payLoading, setPayLoading] = useState(false);
     };
   }, [activePanel, selectedCategory, dbProducts, dataLoading, renderKey, activeFilter, searchQuery]);
 
+  const refreshWalletBalance = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const walletRes = await api<{ balance: number }>("/wallet");
+      setBalance(Number(walletRes.balance));
+    } catch {
+      // ignore
+    }
+  }, [userId]);
+
   useEffect(() => {
-  loadUserData().then(async () => {
-    // Handle SprintPay redirect back after payment
-    const params = new URLSearchParams(window.location.search);
-    const ref = params.get("ref");
-    const payment = params.get("payment");
-    if (ref && payment === "success") {
-      window.history.replaceState({}, '', '/dashboard');
-      try {
-        const walletRes = await api<{ balance: number }>("/wallet");
-        setBalance(walletRes.balance);
+    loadUserData().then(() => {
+      const params = new URLSearchParams(window.location.search);
+      const ref = params.get("ref");
+      const payment = params.get("payment");
+      if (ref && payment === "success") {
+        window.history.replaceState({}, '', '/dashboard');
         setFundSuccess(true);
         setActivePanel("add-funds");
-      } catch {
-        toast.error("Could not refresh balance. It may update shortly.");
+        refreshWalletBalance();
+        const t1 = setTimeout(refreshWalletBalance, 2000);
+        const t2 = setTimeout(refreshWalletBalance, 4000);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
       }
-    }
-  });
-  fetchRecentFeed();
-}, [navigate]);
+    });
+    fetchRecentFeed();
+  }, [navigate, refreshWalletBalance]);
+
+  // Refetch real balance when user opens Add Funds so wallet always shows current value
+  useEffect(() => {
+    if (activePanel === "add-funds") refreshWalletBalance();
+  }, [activePanel, refreshWalletBalance]);
 
   useEffect(() => {
     console.log("STATE UPDATED - categories:", dbCategories.length, "products:", dbProducts.length);
