@@ -72,6 +72,11 @@ class WebhookController extends Controller
             'success' => true,
             'message' => 'Credited ₦' . number_format($amount),
             'new_balance' => $newBalance,
+            'wallet' => [
+                'user_id' => $userId,
+                'balance' => $newBalance,
+                'currency' => $wallet->currency,
+            ],
         ], 200);
     }
 }
