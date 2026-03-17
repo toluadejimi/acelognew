@@ -519,6 +519,16 @@ export default function AdminPanel() {
     }
   };
 
+  const toggleProductActive = async (p: Product) => {
+    try {
+      await api(`/admin/products/${p.id}`, { method: "PUT", body: JSON.stringify({ is_active: !p.is_active }) });
+      toast.success(p.is_active ? "Product disabled" : "Product enabled");
+      setProducts((prev) => prev.map((x) => (x.id === p.id ? { ...x, is_active: !x.is_active } : x)));
+    } catch (e: unknown) {
+      toast.error((e as { message?: string }).message || "Failed to update product");
+    }
+  };
+
   const saveBroadcast = async () => {
     if (!broadcastForm.title.trim()) { toast.error("Enter a title"); return; }
     if (!broadcastForm.body.trim()) { toast.error("Enter message body"); return; }
@@ -1572,7 +1582,10 @@ export default function AdminPanel() {
                         <td><span style={{ color: "hsl(220 70% 50%)", fontWeight: 700 }}>{getUnsoldLogsCount(p.id)}</span></td>
                         <td>{p.is_active ? <span className="admin-status admin-status-active">Active</span> : <span className="admin-status admin-status-blocked">Inactive</span>}</td>
                         <td>
-                          <div style={{ display: "flex", gap: 4 }}>
+                          <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                            <button className={`admin-btn admin-btn-sm ${p.is_active ? "admin-btn-danger" : "admin-btn-success"}`} onClick={() => toggleProductActive(p)} title={p.is_active ? "Disable product" : "Enable product"}>
+                              {p.is_active ? "Disable" : "Enable"}
+                            </button>
                             <button className="admin-btn admin-btn-sm" style={{ background: "hsl(220 20% 93%)" }} onClick={() => {
                               setEditProduct(p);
                               setProductForm({ title: p.title, description: p.description, price: p.price, stock: p.stock, platform: p.platform, category_id: p.category_id, currency: p.currency, image_url: p.image_url || "", sample_link: p.sample_link || "" });
@@ -1617,7 +1630,10 @@ export default function AdminPanel() {
                     <div className="admin-card-item-row"><span className="admin-card-item-label">Stock</span><span className="admin-card-item-value">{p.stock}</span></div>
                     <div className="admin-card-item-row"><span className="admin-card-item-label">Available Logs</span><span className="admin-card-item-value" style={{ color: "hsl(220 70% 50%)", fontWeight: 700 }}>{getUnsoldLogsCount(p.id)}</span></div>
                     <div className="admin-card-item-row"><span className="admin-card-item-label">Status</span>{p.is_active ? <span className="admin-status admin-status-active">Active</span> : <span className="admin-status admin-status-blocked">Inactive</span>}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                    <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+                      <button className={`admin-btn admin-btn-sm ${p.is_active ? "admin-btn-danger" : "admin-btn-success"}`} onClick={() => toggleProductActive(p)}>
+                        {p.is_active ? "Disable" : "Enable"}
+                      </button>
                       <button className="admin-btn admin-btn-sm" style={{ background: "hsl(220 20% 93%)" }} onClick={() => {
                         setEditProduct(p);
                         setProductForm({ title: p.title, description: p.description, price: p.price, stock: p.stock, platform: p.platform, category_id: p.category_id, currency: p.currency, image_url: p.image_url || "", sample_link: p.sample_link || "" });

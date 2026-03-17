@@ -39,7 +39,11 @@ class ProfileController extends Controller
         $search = $request->input('search', '');
         $q = is_string($search) ? trim($search) : '';
 
-        $query = Profile::with(['user', 'user.wallet'])->orderByDesc('created_at');
+        $query = Profile::with(['user', 'user.wallet'])
+            ->leftJoin('users', 'profiles.user_id', '=', 'users.id')
+            ->leftJoin('wallets', 'users.id', '=', 'wallets.user_id')
+            ->orderByRaw('COALESCE(wallets.balance, 0) DESC')
+            ->select('profiles.*');
 
         if ($q !== '') {
             $query->where(function ($builder) use ($q) {
