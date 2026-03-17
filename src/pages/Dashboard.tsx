@@ -3,7 +3,7 @@ import { useAdminCheck } from "@/hooks/useAdminCheck";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
-import { api } from "@/lib/api";
+import { api, apiFormData } from "@/lib/api";
 import { ProductSkeleton, CategorySkeleton, ProductGridSkeleton, ProductListSkeleton, CategoryGridSkeleton } from "@/components/Skeleton";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "../styles/dashboard.css";
@@ -69,6 +69,7 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   content: string;
+  attachment_url?: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -173,6 +174,10 @@ const [payLoading, setPayLoading] = useState(false);
   const [dbProducts, setDbProducts] = useState<Product[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [msgInput, setMsgInput] = useState("");
+  const [pendingAttachmentUrl, setPendingAttachmentUrl] = useState<string | null>(null);
+  const [attachmentUploading, setAttachmentUploading] = useState(false);
+  const chatMessagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentFeed, setRecentFeed] = useState<any[]>([]);
   const { isAdmin } = useAdminCheck();
@@ -462,23 +467,58 @@ const [payLoading, setPayLoading] = useState(false);
     }
   }, [messages, activePanel]);
 
+  useEffect(() => {
+    if (activePanel === "support" && supportChatOpen) {
+      chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, activePanel, supportChatOpen]);
+
   const sendMessage = async (orderId?: string) => {
-    if (!msgInput.trim() || !userId) return;
+    const content = msgInput.trim();
+    if ((!content && !pendingAttachmentUrl) || !userId) return;
     try {
       await api("/messages", {
         method: "POST",
         body: JSON.stringify({
-          content: msgInput.trim(),
+          content: content || undefined,
+          attachment_url: pendingAttachmentUrl || undefined,
           order_id: orderId || undefined,
           receiver_id: "00000000-0000-0000-0000-000000000000",
         }),
       });
       setMsgInput("");
+      setPendingAttachmentUrl(null);
       toast.success("Message sent!");
       const msgs = await api<Message[]>("/messages");
       setMessages(msgs);
     } catch {
       toast.error("Failed to send message");
+    }
+  };
+
+  const handleAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userId) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["jpg", "jpeg", "png", "webp", "gif"].includes(ext || "")) {
+      toast.error("Allowed: JPG, PNG, WebP, GIF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    setAttachmentUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await apiFormData<{ url: string }>("/messages/upload", form);
+      if (res?.url) setPendingAttachmentUrl(res.url);
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setAttachmentUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -2052,84 +2092,97 @@ const [payLoading, setPayLoading] = useState(false);
                   </div>
                 </div>
               ) : (
-                <div style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-                  <div style={{ padding: "24px 24px 0", display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <button
-                      onClick={() => setSupportChatOpen(false)}
-                      style={{ background: 'none', border: 'none', fontSize: 18, color: 'hsl(var(--db-blue))', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                    >
+                <div className="chat-window">
+                  <header className="chat-header">
+                    <button type="button" className="chat-back" onClick={() => setSupportChatOpen(false)} aria-label="Back">
                       <i className="fa-solid fa-arrow-left" />
                     </button>
-                    <div>
-                      <h2 style={{ fontSize: 24, fontWeight: 700, marginBottom: 2 }}>Live Chat</h2>
-                      <p style={{ fontSize: 13, color: "hsl(210 15% 55%)" }}>Our agents typically respond within 15 minutes</p>
+                    <div className="chat-header-avatar">
+                      <i className="fa-solid fa-headset" />
                     </div>
+                    <div className="chat-header-info">
+                      <h2 className="chat-header-title">Support</h2>
+                      <p className="chat-header-status">We typically respond within 15 minutes</p>
+                    </div>
+                  </header>
+
+                  <div id="chat-container" className="chat-messages">
+                    {messages.length === 0 ? (
+                      <div className="chat-empty">
+                        <div className="chat-empty-icon"><i className="fa-regular fa-message" /></div>
+                        <p className="chat-empty-title">Start a conversation</p>
+                        <p className="chat-empty-desc">Send a message or attach an image. Our team will get back to you shortly.</p>
+                      </div>
+                    ) : (
+                      messages.map((msg) => (
+                        <div
+                          key={msg.id}
+                          className={`chat-bubble ${msg.sender_id === userId ? "chat-bubble--sent" : "chat-bubble--received"} ${msg.receiver_id === userId && !msg.is_read ? "chat-bubble--unread" : ""}`}
+                        >
+                          {(msg.content || msg.attachment_url) && (
+                            <>
+                              {msg.attachment_url && (
+                                <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="chat-bubble-image-wrap">
+                                  <img src={msg.attachment_url} alt="Attachment" className="chat-bubble-image" />
+                                </a>
+                              )}
+                              {msg.content && <div className="chat-bubble-text">{msg.content}</div>}
+                            </>
+                          )}
+                          <div className="chat-bubble-meta">
+                            {msg.receiver_id === userId && !msg.is_read && <span className="chat-bubble-new">New</span>}
+                            <span className="chat-bubble-time">{new Date(msg.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</span>
+                            {msg.sender_id !== userId && <span className="chat-bubble-badge">Support</span>}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                    <div ref={chatMessagesEndRef} />
                   </div>
 
-                  <div style={{ padding: "24px", display: "flex", flexDirection: "column", gap: 16, flex: 1 }}>
-                    <div
-                      id="chat-container"
-                      style={{
-                        background: "hsl(var(--db-bg))",
-                        border: "1px solid hsl(var(--db-border))",
-                        borderRadius: 16,
-                        padding: 24,
-                        minHeight: 450,
-                        maxHeight: 600,
-                        overflowY: "auto",
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 12
-                      }}
-                    >
-                      {messages.length === 0 ? (
-                        <div style={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'hsl(var(--db-text-muted))', opacity: 0.7 }}>
-                          <div style={{ fontSize: 48, marginBottom: 16 }}>✉️</div>
-                          <p style={{ fontSize: 15, fontWeight: 500 }}>Start a conversation</p>
-                          <p style={{ fontSize: 13 }}>Send a message to our support agents below.</p>
-                        </div>
-                      ) : (
-                        messages.map((msg) => (
-                          <div
-                            key={msg.id}
-                            style={{
-                              alignSelf: msg.sender_id === userId ? "flex-end" : "flex-start",
-                              background: msg.sender_id === userId ? "hsl(var(--db-blue))" : "hsl(220 20% 94%)",
-                              color: msg.sender_id === userId ? "white" : "hsl(var(--db-text))",
-                              padding: "12px 18px",
-                              borderRadius: msg.sender_id === userId ? "16px 16px 0 16px" : "16px 16px 16px 0",
-                              maxWidth: "75%",
-                              fontSize: 14,
-                              boxShadow: "0 1px 4px hsl(0 0% 0% / 0.05)",
-                              border: "none",
-                              marginLeft: msg.sender_id === userId ? "auto" : "0",
-                              marginRight: msg.sender_id === userId ? "0" : "auto",
-                              borderLeft: msg.receiver_id === userId && !msg.is_read ? "3px solid hsl(var(--db-green))" : undefined,
-                            }}
-                          >
-                            <div style={{ lineHeight: 1.5 }}>{msg.content}</div>
-                            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 6, textAlign: msg.sender_id === userId ? "right" : "left", display: "flex", alignItems: "center", gap: 6, justifyContent: msg.sender_id === userId ? "flex-end" : "flex-start" }}>
-                              {msg.receiver_id === userId && !msg.is_read && <span style={{ color: "hsl(var(--db-green))", fontWeight: 600 }}>New</span>}
-                              {new Date(msg.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
-                              {msg.sender_id !== userId && " · Admin Support"}
-                            </div>
-                          </div>
-                        ))
-                      )}
-                    </div>
-
-                    <div style={{ display: "flex", gap: 10 }}>
+                  <div className="chat-composer">
+                    {pendingAttachmentUrl && (
+                      <div className="chat-attach-preview">
+                        <img src={pendingAttachmentUrl} alt="Attach" />
+                        <button type="button" className="chat-attach-remove" onClick={() => setPendingAttachmentUrl(null)} aria-label="Remove image">
+                          <i className="fa-solid fa-times" />
+                        </button>
+                      </div>
+                    )}
+                    <div className="chat-composer-row">
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/jpeg,image/png,image/webp,image/gif"
+                        className="chat-file-input"
+                        onChange={handleAttachmentChange}
+                        aria-label="Upload image"
+                      />
+                      <button
+                        type="button"
+                        className="chat-composer-btn chat-composer-btn--attach"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={attachmentUploading}
+                        title="Attach image"
+                      >
+                        {attachmentUploading ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-image" />}
+                      </button>
                       <input
                         type="text"
-                        className="dash-form-input"
+                        className="chat-composer-input"
                         placeholder="Type your message..."
                         value={msgInput}
                         onChange={(e) => setMsgInput(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") sendMessage(); }}
-                        style={{ flex: 1, height: 48, borderRadius: 12 }}
+                        onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                       />
-                      <button className="btn-save" onClick={() => sendMessage()} style={{ padding: '0 24px', height: 48, borderRadius: 12 }}>
-                        Send <i className="fa-solid fa-paper-plane" style={{ marginLeft: 8 }} />
+                      <button
+                        type="button"
+                        className="chat-composer-btn chat-composer-btn--send"
+                        onClick={() => sendMessage()}
+                        disabled={(!msgInput.trim() && !pendingAttachmentUrl) || attachmentUploading}
+                      >
+                        <i className="fa-solid fa-paper-plane" />
+                        <span>Send</span>
                       </button>
                     </div>
                   </div>

@@ -494,6 +494,83 @@
   box-shadow: 0 0 0 3px hsl(var(--admin-accent) / 0.08);
 }
 
+/* Searchable product dropdown (Account Logs modal) */
+.admin-select-search-wrap {
+  position: relative;
+}
+
+.admin-select-search-wrap .admin-form-input {
+  padding-right: 40px;
+}
+
+.admin-select-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: 8px;
+  background: hsl(220 15% 90%);
+  color: hsl(220 20% 45%);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: background 0.2s, color 0.2s;
+}
+
+.admin-select-search-clear:hover {
+  background: hsl(0 70% 92%);
+  color: hsl(0 60% 45%);
+}
+
+.admin-select-search-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin: 4px 0 0;
+  padding: 6px 0;
+  max-height: 220px;
+  overflow-y: auto;
+  background: hsl(var(--admin-card));
+  border: 1px solid hsl(var(--admin-border));
+  border-radius: 10px;
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.12);
+  list-style: none;
+  z-index: 50;
+}
+
+.admin-select-search-item {
+  padding: 10px 14px;
+  font-size: 14px;
+  color: hsl(var(--admin-text));
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-select-search-item:hover {
+  background: hsl(var(--admin-accent) / 0.08);
+}
+
+.admin-select-search-item--empty {
+  color: hsl(var(--admin-muted));
+  cursor: default;
+}
+
+[data-theme="dark"] .admin-select-search-clear {
+  background: hsl(220 20% 28%);
+  color: hsl(220 10% 75%);
+}
+
+[data-theme="dark"] .admin-select-search-clear:hover {
+  background: hsl(0 50% 30%);
+  color: hsl(0 80% 85%);
+}
+
 .admin-form-actions {
   display: flex;
   gap: 10px;

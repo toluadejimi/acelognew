@@ -46,6 +46,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/{order}/account-logs', [AccountLogController::class, 'byOrder']);
     Route::get('/messages', [MessageController::class, 'index']);
     Route::post('/messages', [MessageController::class, 'store']);
+    Route::post('/messages/upload', [MessageController::class, 'upload']);
     Route::patch('/messages/{message}/read', [MessageController::class, 'markRead']);
     Route::get('/broadcast-messages', [BroadcastMessageController::class, 'index']);
     Route::get('/manual-payments', [ManualPaymentController::class, 'index']);

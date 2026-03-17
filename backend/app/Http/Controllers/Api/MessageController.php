@@ -22,17 +22,38 @@ class MessageController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'content' => ['required', 'string'],
+            'content' => ['nullable', 'string'],
+            'attachment_url' => ['nullable', 'string', 'max:500'],
             'order_id' => ['nullable', 'exists:orders,id'],
             'receiver_id' => ['nullable', 'string'],
         ]);
+        $content = isset($validated['content']) ? trim($validated['content']) : '';
+        $attachmentUrl = isset($validated['attachment_url']) ? trim($validated['attachment_url']) : null;
+        if ($content === '' && $attachmentUrl === null) {
+            return response()->json(['message' => 'Message must have content or an attachment.'], 422);
+        }
         $msg = Message::create([
             'sender_id' => (string) $request->user()->id,
             'receiver_id' => $validated['receiver_id'] ?? '00000000-0000-0000-0000-000000000000',
-            'content' => $validated['content'],
+            'content' => $content,
+            'attachment_url' => $attachmentUrl,
             'order_id' => $validated['order_id'] ?? null,
         ]);
         return response()->json($this->mapMessage($msg), 201);
+    }
+
+    public function upload(Request $request): JsonResponse
+    {
+        $request->validate(['file' => ['required', 'file']]);
+        $file = $request->file('file');
+        $ext = strtolower($file->getClientOriginalExtension() ?: '');
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if (!in_array($ext, $allowed, true)) {
+            return response()->json(['message' => 'Invalid file type. Allowed: jpg, jpeg, png, webp, gif'], 422);
+        }
+        $path = $file->store('message_attachments', 'public');
+        $url = asset('storage/' . $path);
+        return response()->json(['url' => $url]);
     }
 
     public function adminIndex(): JsonResponse
@@ -62,7 +83,8 @@ class MessageController extends Controller
             'id' => $m->id,
             'sender_id' => $m->sender_id,
             'receiver_id' => $m->receiver_id,
-            'content' => $m->content,
+            'content' => $m->content ?? '',
+            'attachment_url' => $m->attachment_url,
             'order_id' => $m->order_id,
             'is_read' => $m->is_read,
             'created_at' => $m->created_at?->toIso8601String(),

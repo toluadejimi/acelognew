@@ -78,6 +78,7 @@ interface Message {
   sender_id: string;
   receiver_id: string;
   content: string;
+  attachment_url?: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -183,6 +184,9 @@ export default function AdminPanel() {
   const [adminMsgInput, setAdminMsgInput] = useState("");
   const [logModalTab, setLogModalTab] = useState<"single" | "bulk">("bulk");
   const [bulkLogInput, setBulkLogInput] = useState("");
+  const [logProductSearch, setLogProductSearch] = useState("");
+  const [logProductDropdownOpen, setLogProductDropdownOpen] = useState(false);
+  const logProductDropdownRef = useRef<HTMLDivElement>(null);
   const [broadcasts, setBroadcasts] = useState<BroadcastMessage[]>([]);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [editBroadcast, setEditBroadcast] = useState<BroadcastMessage | null>(null);
@@ -799,6 +803,29 @@ export default function AdminPanel() {
     );
   });
 
+  const logModalFilteredProducts = products.filter((p) => {
+    if (!logProductSearch.trim()) return true;
+    const q = logProductSearch.toLowerCase();
+    const cat = categories.find((c) => c.id === p.category_id);
+    return (
+      p.title.toLowerCase().includes(q) ||
+      (p.platform || "").toLowerCase().includes(q) ||
+      (cat?.name || "").toLowerCase().includes(q)
+    );
+  });
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (logProductDropdownRef.current && !logProductDropdownRef.current.contains(e.target as Node)) {
+        setLogProductDropdownOpen(false);
+      }
+    };
+    if (logProductDropdownOpen) {
+      document.addEventListener("click", close);
+      return () => document.removeEventListener("click", close);
+    }
+  }, [logProductDropdownOpen]);
+
   const renderModal = (show: boolean, onClose: () => void, title: string, children: React.ReactNode) => {
     if (!show) return null;
     return (
@@ -901,14 +928,42 @@ export default function AdminPanel() {
       ))}
 
       {/* Log Modal */}
-      {renderModal(showLogModal, () => setShowLogModal(false), "Account Logs", (
+      {renderModal(showLogModal, () => { setShowLogModal(false); setLogProductSearch(""); setLogProductDropdownOpen(false); }, "Account Logs", (
         <>
-          <div className="admin-form-group">
+          <div className="admin-form-group" ref={logProductDropdownRef}>
             <label className="admin-form-label">Product *</label>
-            <select className="admin-form-input" value={logForm.product_id} onChange={(e) => setLogForm({ ...logForm, product_id: e.target.value })}>
-              <option value="">Select product</option>
-              {products.map((p) => <option key={p.id} value={p.id}>{p.title} ({p.platform})</option>)}
-            </select>
+            <div className="admin-select-search-wrap">
+              <input
+                type="text"
+                className="admin-form-input"
+                placeholder="Search products by name, platform..."
+                value={logProductDropdownOpen ? logProductSearch : (logForm.product_id ? (() => { const p = products.find(pr => pr.id === logForm.product_id); return p ? `${p.title} (${p.platform})` : getProductTitle(logForm.product_id); })() : "")}
+                onChange={(e) => { setLogProductSearch(e.target.value); setLogProductDropdownOpen(true); }}
+                onFocus={() => { setLogProductDropdownOpen(true); if (logForm.product_id) setLogProductSearch(""); }}
+              />
+              {logForm.product_id && (
+                <button type="button" className="admin-select-search-clear" onClick={(e) => { e.stopPropagation(); setLogForm({ ...logForm, product_id: "" }); setLogProductSearch(""); }} aria-label="Clear selection">
+                  <i className="fa-solid fa-times" />
+                </button>
+              )}
+              {logProductDropdownOpen && (
+                <ul className="admin-select-search-list">
+                  {logModalFilteredProducts.length === 0 ? (
+                    <li className="admin-select-search-item admin-select-search-item--empty">No products match</li>
+                  ) : (
+                    logModalFilteredProducts.map((p) => (
+                      <li
+                        key={p.id}
+                        className="admin-select-search-item"
+                        onClick={() => { setLogForm({ ...logForm, product_id: p.id }); setLogProductSearch(""); setLogProductDropdownOpen(false); }}
+                      >
+                        {p.title} <span style={{ color: "hsl(220 10% 55%)", fontSize: 12 }}>({p.platform})</span>
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </div>
           </div>
 
           <div className="admin-form-group">
@@ -1930,7 +1985,12 @@ export default function AdminPanel() {
                               wordBreak: "break-word",
                             }}
                           >
-                            <div>{msg.content}</div>
+                            {msg.attachment_url && (
+                              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 6 }}>
+                                <img src={msg.attachment_url} alt="Attachment" style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, objectFit: "cover" }} />
+                              </a>
+                            )}
+                            {msg.content && <div>{msg.content}</div>}
                             <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: "right" }}>
                               {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </div>
