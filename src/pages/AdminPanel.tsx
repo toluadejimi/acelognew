@@ -6,6 +6,8 @@ import { api, apiFormData } from "@/lib/api";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "../styles/admin.css";
 
+const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+
 type AdminTab = "overview" | "users" | "orders" | "products" | "categories" | "transactions" | "admins" | "messages" | "broadcasts" | "logs" | "settings";
 
 interface Profile {
@@ -133,6 +135,7 @@ export default function AdminPanel() {
   const adminUserId = user?.id ?? "";
   const [tab, setTab] = useState<AdminTab>("overview");
   const [search, setSearch] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
   const [walletAmount, setWalletAmount] = useState("");
@@ -301,9 +304,41 @@ export default function AdminPanel() {
   // Get unsold logs count for a product
   const getUnsoldLogsCount = (productId: string) => accountLogs.filter(l => l.product_id === productId && !l.is_sold).length;
 
+  const platformIconMap: Record<string, string> = {
+    Facebook: "fa-brands fa-facebook", Instagram: "fa-brands fa-instagram",
+    TikTok: "fa-brands fa-tiktok", "Twitter/X": "fa-brands fa-x-twitter",
+    YouTube: "fa-brands fa-youtube", Snapchat: "fa-brands fa-snapchat",
+    LinkedIn: "fa-brands fa-linkedin", Discord: "fa-brands fa-discord",
+    Gmail: "fa-brands fa-google", Telegram: "fa-brands fa-telegram",
+  };
+
+  const resolveImageUrl = (url: string | null | undefined): string | null => {
+    if (!url) return null;
+    if (url.startsWith("http://") || url.startsWith("https://")) return url;
+    if (!API_BASE) return url;
+    return `${API_BASE}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
+  const getProductImageNode = (p: Product) => {
+    const productUrl = resolveImageUrl(p.image_url);
+    if (productUrl) {
+      return <img src={productUrl} alt={p.title} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />;
+    }
+    const cat = categories.find((c) => c.id === p.category_id);
+    const catUrl = resolveImageUrl(cat?.image_url ?? null);
+    if (catUrl) {
+      return <img src={catUrl} alt={p.title} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />;
+    }
+    if (platformIconMap[p.platform]) {
+      return <i className={platformIconMap[p.platform]} />;
+    }
+    return <div style={{ width: 36, height: 36, borderRadius: 8, background: "hsl(220 20% 93%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📦</div>;
+  };
+
   const switchTab = (t: AdminTab) => {
     setTab(t);
     setSearch("");
+    setProductSearch("");
     setSelectedUser(null);
     setSidebarOpen(false);
   };
@@ -677,6 +712,17 @@ export default function AdminPanel() {
     !search || getProductTitle(l.product_id).toLowerCase().includes(search.toLowerCase()) || l.login.toLowerCase().includes(search.toLowerCase())
   );
 
+  const filteredProducts = products.filter((p) => {
+    if (!productSearch.trim()) return true;
+    const q = productSearch.toLowerCase();
+    const cat = categories.find((c) => c.id === p.category_id);
+    return (
+      p.title.toLowerCase().includes(q) ||
+      (p.platform || "").toLowerCase().includes(q) ||
+      (cat?.name || "").toLowerCase().includes(q)
+    );
+  });
+
   const renderModal = (show: boolean, onClose: () => void, title: string, children: React.ReactNode) => {
     if (!show) return null;
     return (
@@ -719,17 +765,38 @@ export default function AdminPanel() {
           </div>
           <div className="admin-form-group">
             <label className="admin-form-label">Image URL / Upload</label>
-            <div style={{ display: 'flex', gap: 10 }}>
-              <input className="admin-form-input" style={{ flex: 1 }} value={productForm.image_url} onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })} placeholder="Image URL or upload →" />
-            <div className="admin-form-group">
-              <label>Sample link (for users to view sample)</label>
-              <input className="admin-form-input" value={productForm.sample_link} onChange={(e) => setProductForm({ ...productForm, sample_link: e.target.value })} placeholder="https://..." />
-            </div>
-              <input type="file" accept="image/*" onChange={handleProductImageUpload} style={{ display: 'none' }} id="p-img" />
-              <button className="admin-btn admin-btn-sm" onClick={() => document.getElementById('p-img')?.click()} disabled={isUploading}>
+            <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+              <input
+                className="admin-form-input"
+                style={{ flex: 1 }}
+                value={productForm.image_url}
+                onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                placeholder="Image URL or upload →"
+              />
+              <input type="file" accept="image/*" onChange={handleProductImageUpload} style={{ display: "none" }} id="p-img" />
+              <button
+                type="button"
+                className="admin-btn admin-btn-sm"
+                onClick={() => document.getElementById("p-img")?.click()}
+                disabled={isUploading}
+                title="Upload image"
+              >
                 {isUploading ? "..." : "📁"}
               </button>
             </div>
+            {resolveImageUrl(productForm.image_url) ? (
+              <div style={{ marginTop: 10 }}>
+                <img
+                  src={resolveImageUrl(productForm.image_url)!}
+                  alt="Preview"
+                  style={{ width: 64, height: 64, borderRadius: 12, objectFit: "cover", border: "1px solid hsl(220 20% 90%)" }}
+                />
+              </div>
+            ) : null}
+          </div>
+          <div className="admin-form-group">
+            <label className="admin-form-label">Sample link (optional)</label>
+            <input className="admin-form-input" value={productForm.sample_link} onChange={(e) => setProductForm({ ...productForm, sample_link: e.target.value })} placeholder="https://..." />
           </div>
           <div className="admin-form-group">
             <label className="admin-form-label">Category *</label>
@@ -749,7 +816,9 @@ export default function AdminPanel() {
             </div>
           </div>
           <div className="admin-form-actions">
-            <button className="admin-btn admin-btn-primary" onClick={saveProduct}>{editProduct ? "Update" : "Create"}</button>
+            <button className="admin-btn admin-btn-primary" onClick={saveProduct} disabled={isUploading}>
+              {isUploading ? "Uploading..." : (editProduct ? "Update" : "Create")}
+            </button>
             <button className="admin-btn" style={{ background: "hsl(220 20% 93%)" }} onClick={() => { setShowProductModal(false); setEditProduct(null); }}>Cancel</button>
           </div>
         </>
@@ -1315,8 +1384,15 @@ export default function AdminPanel() {
             <>
               <div className="admin-table-wrap">
                 <div className="admin-table-header">
-                  <div className="admin-table-title">All Products ({products.length})</div>
-                  <div style={{ display: "flex", gap: 8 }}>
+                  <div className="admin-table-title">All Products ({filteredProducts.length})</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <input
+                      className="admin-form-input"
+                      style={{ flex: "1 1 200px", minWidth: 160, maxWidth: 320 }}
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Search products..."
+                    />
                     <button className="admin-btn" style={{ background: "hsl(220 20% 92%)" }} onClick={() => setShowBulkUploadModal(true)}>📤 Bulk Upload (CSV/TXT)</button>
                     <button className="admin-btn admin-btn-primary" onClick={() => {
                       setEditProduct(null);
@@ -1328,14 +1404,10 @@ export default function AdminPanel() {
                 <table className="admin-table">
                   <thead><tr><th>Image</th><th>Title</th><th>Platform</th><th>Price</th><th>Stock</th><th>Logs</th><th>Active</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {products.map((p) => (
+                    {filteredProducts.map((p) => (
                       <tr key={p.id}>
                         <td>
-                          {p.image_url ? (
-                            <img src={p.image_url} alt={p.title} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />
-                          ) : (
-                            <div style={{ width: 36, height: 36, borderRadius: 8, background: "hsl(220 20% 93%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📦</div>
-                          )}
+                          {getProductImageNode(p)}
                         </td>
                         <td style={{ fontWeight: 600 }}>{p.title}</td>
                         <td>{p.platform}</td>
@@ -1357,26 +1429,31 @@ export default function AdminPanel() {
                     ))}
                   </tbody>
                 </table>
-                {products.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">🛍️</div>No products yet<br /><button className="admin-btn admin-btn-primary" style={{ marginTop: 12 }} onClick={() => setShowProductModal(true)}>Add First Product</button></div>}
+                {filteredProducts.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">🛍️</div>No products found</div>}
               </div>
 
               <div className="admin-card-list">
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>Products ({products.length})</div>
-                  <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => {
-                    setEditProduct(null);
-                    setProductForm({ title: "", description: "", price: 0, stock: 0, platform: "", category_id: "", currency: "NGN", image_url: "", sample_link: "" });
-                    setShowProductModal(true);
-                  }}>+ Add</button>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>Products ({filteredProducts.length})</div>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <input
+                      className="admin-form-input"
+                      style={{ flex: "1 1 200px", minWidth: 160, maxWidth: 320 }}
+                      value={productSearch}
+                      onChange={(e) => setProductSearch(e.target.value)}
+                      placeholder="Search products..."
+                    />
+                    <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => {
+                      setEditProduct(null);
+                      setProductForm({ title: "", description: "", price: 0, stock: 0, platform: "", category_id: "", currency: "NGN", image_url: "", sample_link: "" });
+                      setShowProductModal(true);
+                    }}>+ Add</button>
+                  </div>
                 </div>
-                {products.map((p) => (
+                {filteredProducts.map((p) => (
                   <div className="admin-card-item" key={p.id}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                      {p.image_url ? (
-                        <img src={p.image_url} alt={p.title} style={{ width: 36, height: 36, borderRadius: 8, objectFit: "cover" }} />
-                      ) : (
-                        <div style={{ width: 36, height: 36, borderRadius: 8, background: "hsl(220 20% 93%)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>📦</div>
-                      )}
+                      {getProductImageNode(p)}
                       <span style={{ fontWeight: 700, fontSize: 14 }}>{p.title}</span>
                     </div>
                     <div className="admin-card-item-row"><span className="admin-card-item-label">Platform</span><span className="admin-card-item-value">{p.platform}</span></div>

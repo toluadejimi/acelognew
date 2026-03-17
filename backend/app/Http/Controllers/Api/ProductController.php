@@ -73,8 +73,18 @@ class ProductController extends Controller
 
     public function upload(Request $request): JsonResponse
     {
-        $request->validate(['file' => ['required', 'file', 'image']]);
-        $path = $request->file('file')->store('product_images', 'public');
+        // Some servers disable php_fileinfo; Laravel's `image` rule then throws
+        // "Unable to guess the MIME type". We validate by extension instead.
+        $request->validate(['file' => ['required', 'file']]);
+
+        $file = $request->file('file');
+        $ext = strtolower($file->getClientOriginalExtension() ?: '');
+        $allowed = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        if (!in_array($ext, $allowed, true)) {
+            return response()->json(['message' => 'Invalid file type. Allowed: jpg, jpeg, png, webp, gif'], 422);
+        }
+
+        $path = $file->store('product_images', 'public');
         $url = asset('storage/' . $path);
         return response()->json(['url' => $url]);
     }
