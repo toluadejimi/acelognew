@@ -14,6 +14,7 @@ interface Profile {
   id: string;
   user_id: string;
   username: string | null;
+  email: string | null;
   created_at: string;
   is_blocked: boolean;
 }
@@ -135,6 +136,8 @@ export default function AdminPanel() {
   const adminUserId = user?.id ?? "";
   const [tab, setTab] = useState<AdminTab>("overview");
   const [search, setSearch] = useState("");
+  const [usersPage, setUsersPage] = useState(1);
+  const USERS_PER_PAGE = 50;
   const [productSearch, setProductSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
@@ -181,12 +184,13 @@ export default function AdminPanel() {
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [editBroadcast, setEditBroadcast] = useState<BroadcastMessage | null>(null);
   const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", is_active: true });
+  const [usersTotal, setUsersTotal] = useState(0);
   useEffect(() => { loadAll(); }, []);
 
   const loadAll = async () => {
     try {
       const [p, w, o, pr, c, t, r, m, al, bd, ss, bc] = await Promise.all([
-        api<Profile[]>("/admin/profiles"),
+        api<Profile[] | { profiles: Profile[]; total: number }>("/admin/profiles"),
         api<Wallet[]>("/admin/wallets"),
         api<Order[]>("/admin/orders"),
         api<Product[]>("/admin/products"),
@@ -199,7 +203,16 @@ export default function AdminPanel() {
         api<{ key: string; value: string }[]>("/admin/site-settings"),
         api<BroadcastMessage[]>("/admin/broadcast-messages"),
       ]);
-      setProfiles(Array.isArray(p) ? p : []);
+      if (p && typeof p === "object" && !Array.isArray(p) && "profiles" in p) {
+        const obj = p as { profiles?: Profile[]; total?: number };
+        const list = Array.isArray(obj.profiles) ? obj.profiles : [];
+        setProfiles(list);
+        setUsersTotal(typeof obj.total === "number" ? obj.total : list.length);
+      } else {
+        const list = Array.isArray(p) ? p : [];
+        setProfiles(list);
+        setUsersTotal(list.length);
+      }
       setWallets(Array.isArray(w) ? w : []);
       setOrders(Array.isArray(o) ? o : []);
       setProducts(Array.isArray(pr) ? pr : []);
@@ -338,6 +351,7 @@ export default function AdminPanel() {
   const switchTab = (t: AdminTab) => {
     setTab(t);
     setSearch("");
+    setUsersPage(1);
     setProductSearch("");
     setSelectedUser(null);
     setSidebarOpen(false);
@@ -712,6 +726,13 @@ export default function AdminPanel() {
     !search || getProductTitle(l.product_id).toLowerCase().includes(search.toLowerCase()) || l.login.toLowerCase().includes(search.toLowerCase())
   );
 
+  const totalUserPages = Math.max(1, Math.ceil(filteredProfiles.length / USERS_PER_PAGE));
+  const currentUsersPage = Math.min(usersPage, totalUserPages);
+  const paginatedProfiles = filteredProfiles.slice(
+    (currentUsersPage - 1) * USERS_PER_PAGE,
+    currentUsersPage * USERS_PER_PAGE
+  );
+
   const filteredProducts = products.filter((p) => {
     if (!productSearch.trim()) return true;
     const q = productSearch.toLowerCase();
@@ -1046,7 +1067,7 @@ export default function AdminPanel() {
               <div className="admin-stats" style={{ marginBottom: 28 }}>
                 <div className="admin-stat-card">
                   <div className="admin-stat-label">Users</div>
-                  <div className="admin-stat-val">{profiles.length}</div>
+                  <div className="admin-stat-val">{usersTotal}</div>
                   <div className="admin-stat-sub">registered</div>
                 </div>
                 <div className="admin-stat-card">
@@ -1264,11 +1285,12 @@ export default function AdminPanel() {
                       <div className="admin-table-title">All Users ({filteredProfiles.length})</div>
                     </div>
                     <table className="admin-table">
-                      <thead><tr><th>Username</th><th>Balance</th><th>Orders</th><th>Status</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
+                      <thead><tr><th>Username</th><th>Email</th><th>Balance</th><th>Orders</th><th>Status</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
                       <tbody>
-                        {filteredProfiles.map((p) => (
+                        {paginatedProfiles.map((p) => (
                           <tr key={p.id}>
                             <td style={{ fontWeight: 600 }}>{p.username || "—"}</td>
+                            <td style={{ fontFamily: "monospace", fontSize: 12 }}>{p.email || "—"}</td>
                             <td style={{ fontWeight: 700 }}>₦{getWalletBalance(p.user_id).toLocaleString()}</td>
                             <td>{getUserOrders(p.user_id).length}</td>
                             <td>{p.is_blocked ? <span className="admin-status admin-status-blocked">Blocked</span> : <span className="admin-status admin-status-active">Active</span>}</td>
@@ -1287,10 +1309,35 @@ export default function AdminPanel() {
                       </tbody>
                     </table>
                     {filteredProfiles.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">👥</div>No users found</div>}
+                    {filteredProfiles.length > 0 && (
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 13 }}>
+                        <span>
+                          Showing {(currentUsersPage - 1) * USERS_PER_PAGE + 1}–
+                          {Math.min(currentUsersPage * USERS_PER_PAGE, filteredProfiles.length)} of {filteredProfiles.length}
+                        </span>
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <button
+                            className="admin-btn admin-btn-sm"
+                            onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+                            disabled={currentUsersPage === 1}
+                          >
+                            ← Prev
+                          </button>
+                          <span>Page {currentUsersPage} of {totalUserPages}</span>
+                          <button
+                            className="admin-btn admin-btn-sm"
+                            onClick={() => setUsersPage((p) => Math.min(totalUserPages, p + 1))}
+                            disabled={currentUsersPage === totalUserPages}
+                          >
+                            Next →
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="admin-card-list">
-                    {filteredProfiles.map((p) => (
+                    {paginatedProfiles.map((p) => (
                       <div className="admin-card-item" key={p.id} onClick={() => setSelectedUser(p)} style={{ cursor: "pointer" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
                           <div className="admin-user-avatar" style={{ width: 38, height: 38, fontSize: 14, borderRadius: 10 }}>
@@ -1298,7 +1345,8 @@ export default function AdminPanel() {
                           </div>
                           <div>
                             <div style={{ fontWeight: 700, fontSize: 14 }}>{p.username || "—"}</div>
-                            <div style={{ fontSize: 11, color: "hsl(220 10% 50%)" }}>{new Date(p.created_at).toLocaleDateString()}</div>
+                            <div style={{ fontSize: 11, color: "hsl(220 10% 50%)" }}>{p.email || "—"}</div>
+                            <div style={{ fontSize: 11, color: "hsl(220 10% 60%)" }}>{new Date(p.created_at).toLocaleDateString()}</div>
                           </div>
                           <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
                             {p.is_blocked && <span className="admin-status admin-status-blocked">Blocked</span>}

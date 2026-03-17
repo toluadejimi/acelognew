@@ -34,14 +34,20 @@ class ProfileController extends Controller
     public function adminIndex(): JsonResponse
     {
         $profiles = Profile::with('user')->orderByDesc('created_at')->limit(5000)->get();
-        return response()->json($profiles->map(fn (Profile $p) => [
-            'id' => $p->id,
-            'user_id' => (string) $p->user_id,
-            'username' => $p->username,
-            'avatar_url' => $p->avatar_url,
-            'is_blocked' => $p->is_blocked,
-            'created_at' => $p->created_at?->toIso8601String(),
-        ]));
+        $total = Profile::count();
+
+        return response()->json([
+            'profiles' => $profiles->map(fn (Profile $p) => [
+                'id' => $p->id,
+                'user_id' => (string) $p->user_id,
+                'username' => $p->username,
+                'email' => $p->user?->email,
+                'avatar_url' => $p->avatar_url,
+                'is_blocked' => $p->is_blocked,
+                'created_at' => $p->created_at?->toIso8601String(),
+            ])->values()->all(),
+            'total' => $total,
+        ]);
     }
 
     public function toggleBlock(Profile $profile): JsonResponse
