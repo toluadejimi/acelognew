@@ -33,8 +33,8 @@ class ProfileController extends Controller
 
     public function adminIndex(): JsonResponse
     {
-        // Load all users for admin listing
-        $profiles = Profile::with('user')->orderByDesc('created_at')->get();
+        // Load all users with wallet so admin list shows correct balance for every user
+        $profiles = Profile::with(['user', 'user.wallet'])->orderByDesc('created_at')->get();
         $total = $profiles->count();
 
         return response()->json([
@@ -46,6 +46,7 @@ class ProfileController extends Controller
                 'avatar_url' => $p->avatar_url,
                 'is_blocked' => $p->is_blocked,
                 'created_at' => $p->created_at?->toIso8601String(),
+                'balance' => (float) ($p->user?->wallet?->balance ?? 0),
             ])->values()->all(),
             'total' => $total,
         ]);

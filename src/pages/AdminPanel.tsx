@@ -17,6 +17,7 @@ interface Profile {
   email: string | null;
   created_at: string;
   is_blocked: boolean;
+  balance?: number;
 }
 
 interface Wallet {
@@ -284,6 +285,9 @@ export default function AdminPanel() {
     const w = wallets.find((x) => x.user_id === userId);
     return w ? Number(w.balance) : 0;
   };
+
+  const getDisplayBalance = (p: Profile) =>
+    typeof p.balance === "number" ? p.balance : getWalletBalance(p.user_id);
 
   const getUserName = (userId: string) => {
     const p = profiles.find((x) => x.user_id === userId);
@@ -1005,7 +1009,7 @@ export default function AdminPanel() {
       {renderModal(!!walletAction, () => setWalletAction(null), `${walletAction === "credit" ? "Credit" : "Debit"} Wallet — ${selectedUser?.username || ""}`, (
         <>
           <p style={{ fontSize: 13, color: "hsl(220 10% 50%)", marginBottom: 16 }}>
-            Current balance: <strong>₦{selectedUser ? getWalletBalance(selectedUser.user_id).toLocaleString() : 0}</strong>
+            Current balance: <strong>₦{selectedUser ? getDisplayBalance(profiles.find(pr => pr.user_id === selectedUser.user_id) ?? selectedUser).toLocaleString() : 0}</strong>
           </p>
           <div className="admin-form-group">
             <label className="admin-form-label">Amount (₦)</label>
@@ -1181,7 +1185,7 @@ export default function AdminPanel() {
                     <div className="admin-user-detail-stats">
                       <div>
                         <div className="admin-stat-label">Wallet Balance</div>
-                        <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(220 20% 12%)" }}>₦{getWalletBalance(selectedUser.user_id).toLocaleString()}</div>
+                        <div style={{ fontSize: 22, fontWeight: 800, color: "hsl(220 20% 12%)" }}>₦{getDisplayBalance(profiles.find(pr => pr.user_id === selectedUser.user_id) ?? selectedUser).toLocaleString()}</div>
                       </div>
                       <div>
                         <div className="admin-stat-label">Total Orders</div>
@@ -1297,7 +1301,7 @@ export default function AdminPanel() {
                           <tr key={p.id}>
                             <td style={{ fontWeight: 600 }}>{p.username || "—"}</td>
                             <td style={{ fontFamily: "monospace", fontSize: 12 }}>{p.email || "—"}</td>
-                            <td style={{ fontWeight: 700 }}>₦{getWalletBalance(p.user_id).toLocaleString()}</td>
+                            <td style={{ fontWeight: 700 }}>₦{getDisplayBalance(p).toLocaleString()}</td>
                             <td>{getUserOrders(p.user_id).length}</td>
                             <td>{p.is_blocked ? <span className="admin-status admin-status-blocked">Blocked</span> : <span className="admin-status admin-status-active">Active</span>}</td>
                             <td>{isUserAdmin(p.user_id) ? <span className="admin-status admin-status-active">Admin</span> : <span className="admin-status">User</span>}</td>
@@ -1359,7 +1363,7 @@ export default function AdminPanel() {
                         </div>
                         <div className="admin-card-item-row">
                           <span className="admin-card-item-label">Balance</span>
-                          <span className="admin-card-item-value">₦{getWalletBalance(p.user_id).toLocaleString()}</span>
+                          <span className="admin-card-item-value">₦{getDisplayBalance(p).toLocaleString()}</span>
                         </div>
                         <div className="admin-card-item-row">
                           <span className="admin-card-item-label">Orders</span>
