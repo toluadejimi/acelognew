@@ -1067,7 +1067,7 @@ export default function AdminPanel() {
               <div className="admin-stats" style={{ marginBottom: 28 }}>
                 <div className="admin-stat-card">
                   <div className="admin-stat-label">Users</div>
-                  <div className="admin-stat-val">{usersTotal}</div>
+                  <div className="admin-stat-val">{usersTotal.toLocaleString()}</div>
                   <div className="admin-stat-sub">registered</div>
                 </div>
                 <div className="admin-stat-card">
@@ -1282,7 +1282,7 @@ export default function AdminPanel() {
                 <>
                   <div className="admin-table-wrap">
                     <div className="admin-table-header">
-                      <div className="admin-table-title">All Users ({filteredProfiles.length})</div>
+                      <div className="admin-table-title">All Users ({usersTotal.toLocaleString()})</div>
                     </div>
                     <table className="admin-table">
                       <thead><tr><th>Username</th><th>Email</th><th>Balance</th><th>Orders</th><th>Status</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
@@ -1312,8 +1312,7 @@ export default function AdminPanel() {
                     {filteredProfiles.length > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 13 }}>
                         <span>
-                          Showing {(currentUsersPage - 1) * USERS_PER_PAGE + 1}–
-                          {Math.min(currentUsersPage * USERS_PER_PAGE, filteredProfiles.length)} of {filteredProfiles.length}
+                          Page {currentUsersPage.toLocaleString()} of {totalUserPages.toLocaleString()}
                         </span>
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
@@ -1323,7 +1322,6 @@ export default function AdminPanel() {
                           >
                             ← Prev
                           </button>
-                          <span>Page {currentUsersPage} of {totalUserPages}</span>
                           <button
                             className="admin-btn admin-btn-sm"
                             onClick={() => setUsersPage((p) => Math.min(totalUserPages, p + 1))}
