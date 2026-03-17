@@ -36,10 +36,22 @@ class ProfileController extends Controller
         // Paginate to avoid loading 40k+ rows (memory/timeout → 500). One page per request.
         $perPage = min(100, max(1, (int) $request->input('per_page', 50)));
         $page = max(1, (int) $request->input('page', 1));
+        $search = $request->input('search', '');
+        $q = is_string($search) ? trim($search) : '';
 
-        $paginator = Profile::with(['user', 'user.wallet'])
-            ->orderByDesc('created_at')
-            ->paginate($perPage, ['*'], 'page', $page);
+        $query = Profile::with(['user', 'user.wallet'])->orderByDesc('created_at');
+
+        if ($q !== '') {
+            $query->where(function ($builder) use ($q) {
+                $builder->where('profiles.username', 'like', '%' . $q . '%')
+                    ->orWhere('profiles.user_id', 'like', '%' . $q . '%')
+                    ->orWhereHas('user', function ($userQuery) use ($q) {
+                        $userQuery->where('users.email', 'like', '%' . $q . '%');
+                    });
+            });
+        }
+
+        $paginator = $query->paginate($perPage, ['*'], 'page', $page);
 
         $profiles = $paginator->getCollection()->map(fn (Profile $p) => [
             'id' => $p->id,

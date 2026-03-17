@@ -824,3 +824,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+@keyframes admin-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

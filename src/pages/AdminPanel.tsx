@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -189,12 +189,19 @@ export default function AdminPanel() {
   const [broadcastForm, setBroadcastForm] = useState({ title: "", body: "", is_active: true });
   const [usersTotal, setUsersTotal] = useState(0);
   const [usersLastPage, setUsersLastPage] = useState(1);
+  const [adminLoading, setAdminLoading] = useState(true);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const initialLoadDone = useRef(false);
   useEffect(() => { loadAll(); }, []);
 
-  const fetchProfilesPage = async (page: number) => {
+  const fetchProfilesPage = async (page: number, searchQuery?: string) => {
+    setUsersLoading(true);
     try {
+      const params = new URLSearchParams({ page: String(page), per_page: String(USERS_PER_PAGE) });
+      const q = typeof searchQuery === "string" ? searchQuery.trim() : "";
+      if (q) params.set("search", q);
       const res = await api<{ profiles: Profile[]; total: number; current_page: number; last_page: number; per_page: number }>(
-        `/admin/profiles?page=${page}&per_page=${USERS_PER_PAGE}`
+        `/admin/profiles?${params.toString()}`
       );
       const list = Array.isArray(res.profiles) ? res.profiles : [];
       setProfiles(list);
@@ -204,16 +211,22 @@ export default function AdminPanel() {
     } catch (e) {
       console.error("fetchProfilesPage:", e);
       toast.error("Failed to load users");
+    } finally {
+      setUsersLoading(false);
     }
   };
 
   useEffect(() => {
-    if (tab === "users") fetchProfilesPage(1);
-  }, [tab]);
+    if (tab !== "users") return;
+    const t = setTimeout(() => fetchProfilesPage(1, search), 300);
+    return () => clearTimeout(t);
+  }, [tab, search]);
 
   const loadAll = async () => {
+    const isInitial = !initialLoadDone.current;
+    if (isInitial) setAdminLoading(true);
     try {
-      const [w, o, pr, c, t, r, m, al, bd, ss, bc] = await Promise.all([
+      const [w, o, pr, c, t, r, m, al, bd, ss, bc, profilesRes] = await Promise.all([
         api<Wallet[]>("/admin/wallets"),
         api<Order[]>("/admin/orders"),
         api<Product[]>("/admin/products"),
@@ -225,6 +238,9 @@ export default function AdminPanel() {
         api<BankDetail[]>("/admin/bank-details"),
         api<{ key: string; value: string }[]>("/admin/site-settings"),
         api<BroadcastMessage[]>("/admin/broadcast-messages"),
+        api<{ profiles: Profile[]; total: number; current_page: number; last_page: number; per_page: number }>(
+          `/admin/profiles?page=1&per_page=${USERS_PER_PAGE}`
+        ),
       ]);
       setWallets(Array.isArray(w) ? w : []);
       setOrders(Array.isArray(o) ? o : []);
@@ -246,13 +262,23 @@ export default function AdminPanel() {
       setBankDetails(Array.isArray(bd) ? bd : []);
       setSiteSettings(Array.isArray(ss) ? ss : []);
       setBroadcasts(Array.isArray(bc) ? bc : []);
+      if (isInitial && profilesRes && typeof profilesRes === "object" && "profiles" in profilesRes) {
+        const list = Array.isArray(profilesRes.profiles) ? profilesRes.profiles : [];
+        setProfiles(list);
+        setUsersTotal(typeof profilesRes.total === "number" ? profilesRes.total : 0);
+        setUsersLastPage(typeof profilesRes.last_page === "number" ? profilesRes.last_page : 1);
+        setUsersPage(1);
+      }
     } catch (e) {
       console.error("Admin loadAll:", e);
       toast.error("Failed to load data");
+    } finally {
+      initialLoadDone.current = true;
+      setAdminLoading(false);
     }
   };
 
-  // Poll messages for admin
+  // Poll messages for admin (runs every 10s; does not show full-page loading)
   useEffect(() => {
     const t = setInterval(() => { loadAll(); }, 10000);
     return () => clearInterval(t);
@@ -721,15 +747,8 @@ export default function AdminPanel() {
     navigate("/auth");
   };
 
-  const filteredProfiles = profiles.filter((p) => {
-    if (!search.trim()) return true;
-    const q = search.toLowerCase().trim();
-    return (
-      p.username?.toLowerCase().includes(q) ||
-      p.email?.toLowerCase().includes(q) ||
-      p.user_id.toLowerCase().includes(q)
-    );
-  });
+  // Users list is server-side filtered via fetchProfilesPage(page, search); no client-side filter.
+  const filteredProfiles = profiles;
 
   const filteredOrders = orders.filter((o) =>
     !search || o.product_title.toLowerCase().includes(search.toLowerCase()) || o.id.includes(search) || getUserName(o.user_id).toLowerCase().includes(search.toLowerCase())
@@ -1084,6 +1103,30 @@ export default function AdminPanel() {
         </div>
 
         <div className="admin-content">
+          {adminLoading && (
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 320,
+              gap: 16,
+              color: "hsl(220 10% 50%)",
+            }}>
+              <div style={{
+                width: 48,
+                height: 48,
+                border: "4px solid hsl(220 20% 90%)",
+                borderTopColor: "hsl(var(--admin-accent, 230 65% 55%))",
+                borderRadius: "50%",
+                animation: "admin-spin 0.8s linear infinite",
+              }} />
+              <div style={{ fontSize: 15, fontWeight: 600 }}>Loading admin data…</div>
+              <div style={{ fontSize: 13 }}>Users, orders, products, and more</div>
+            </div>
+          )}
+          {!adminLoading && (
+          <>
           {/* ═══ OVERVIEW ═══ */}
           {tab === "overview" && (
             <>
@@ -1308,8 +1351,15 @@ export default function AdminPanel() {
                 <>
                   <div className="admin-table-wrap">
                     <div className="admin-table-header">
-                      <div className="admin-table-title">All Users ({usersTotal.toLocaleString()})</div>
+                      <div className="admin-table-title">All Users ({usersTotal.toLocaleString()}){usersLoading && <span style={{ marginLeft: 10, fontSize: 13, fontWeight: 500, color: "hsl(220 10% 50%)" }}>Loading…</span>}</div>
                     </div>
+                    {usersLoading && (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "hsl(220 10% 50%)" }}>
+                        <div style={{ width: 24, height: 24, border: "3px solid hsl(220 20% 90%)", borderTopColor: "hsl(var(--admin-accent))", borderRadius: "50%", animation: "admin-spin 0.8s linear infinite" }} />
+                        <span>Loading users…</span>
+                      </div>
+                    )}
+                    {!usersLoading && (
                     <table className="admin-table">
                       <thead><tr><th>Username</th><th>Email</th><th>Balance</th><th>Orders</th><th>Status</th><th>Role</th><th>Joined</th><th>Actions</th></tr></thead>
                       <tbody>
@@ -1334,8 +1384,9 @@ export default function AdminPanel() {
                         ))}
                       </tbody>
                     </table>
-                    {filteredProfiles.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">👥</div>No users found</div>}
-                    {filteredProfiles.length > 0 && (
+                    )}
+                    {!usersLoading && filteredProfiles.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">👥</div>No users found</div>}
+                    {!usersLoading && filteredProfiles.length > 0 && (
                       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 12, fontSize: 13 }}>
                         <span>
                           Page {currentUsersPage.toLocaleString()} of {totalUserPages.toLocaleString()}
@@ -1343,14 +1394,14 @@ export default function AdminPanel() {
                         <div style={{ display: "flex", gap: 8 }}>
                           <button
                             className="admin-btn admin-btn-sm"
-                            onClick={() => fetchProfilesPage(currentUsersPage - 1)}
+                            onClick={() => fetchProfilesPage(currentUsersPage - 1, search)}
                             disabled={currentUsersPage === 1}
                           >
                             ← Prev
                           </button>
                           <button
                             className="admin-btn admin-btn-sm"
-                            onClick={() => fetchProfilesPage(currentUsersPage + 1)}
+                            onClick={() => fetchProfilesPage(currentUsersPage + 1, search)}
                             disabled={currentUsersPage === totalUserPages}
                           >
                             Next →
@@ -1361,33 +1412,42 @@ export default function AdminPanel() {
                   </div>
 
                   <div className="admin-card-list">
-                    {paginatedProfiles.map((p) => (
-                      <div className="admin-card-item" key={p.id} onClick={() => setSelectedUser(p)} style={{ cursor: "pointer" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-                          <div className="admin-user-avatar" style={{ width: 38, height: 38, fontSize: 14, borderRadius: 10 }}>
-                            {(p.username || "U")[0].toUpperCase()}
-                          </div>
-                          <div>
-                            <div style={{ fontWeight: 700, fontSize: 14 }}>{p.username || "—"}</div>
-                            <div style={{ fontSize: 11, color: "hsl(220 10% 50%)" }}>{p.email || "—"}</div>
-                            <div style={{ fontSize: 11, color: "hsl(220 10% 60%)" }}>{new Date(p.created_at).toLocaleDateString()}</div>
-                          </div>
-                          <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
-                            {p.is_blocked && <span className="admin-status admin-status-blocked">Blocked</span>}
-                            {isUserAdmin(p.user_id) && <span className="admin-status admin-status-active">Admin</span>}
-                          </div>
-                        </div>
-                        <div className="admin-card-item-row">
-                          <span className="admin-card-item-label">Balance</span>
-                          <span className="admin-card-item-value">₦{getDisplayBalance(p).toLocaleString()}</span>
-                        </div>
-                        <div className="admin-card-item-row">
-                          <span className="admin-card-item-label">Orders</span>
-                          <span className="admin-card-item-value">{getUserOrders(p.user_id).length}</span>
-                        </div>
+                    {usersLoading ? (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, padding: 24, color: "hsl(220 10% 50%)" }}>
+                        <div style={{ width: 24, height: 24, border: "3px solid hsl(220 20% 90%)", borderTopColor: "hsl(var(--admin-accent))", borderRadius: "50%", animation: "admin-spin 0.8s linear infinite" }} />
+                        <span>Loading users…</span>
                       </div>
-                    ))}
-                    {filteredProfiles.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">👥</div>No users found</div>}
+                    ) : (
+                      <>
+                        {paginatedProfiles.map((p) => (
+                          <div className="admin-card-item" key={p.id} onClick={() => setSelectedUser(p)} style={{ cursor: "pointer" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                              <div className="admin-user-avatar" style={{ width: 38, height: 38, fontSize: 14, borderRadius: 10 }}>
+                                {(p.username || "U")[0].toUpperCase()}
+                              </div>
+                              <div>
+                                <div style={{ fontWeight: 700, fontSize: 14 }}>{p.username || "—"}</div>
+                                <div style={{ fontSize: 11, color: "hsl(220 10% 50%)" }}>{p.email || "—"}</div>
+                                <div style={{ fontSize: 11, color: "hsl(220 10% 60%)" }}>{new Date(p.created_at).toLocaleDateString()}</div>
+                              </div>
+                              <div style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+                                {p.is_blocked && <span className="admin-status admin-status-blocked">Blocked</span>}
+                                {isUserAdmin(p.user_id) && <span className="admin-status admin-status-active">Admin</span>}
+                              </div>
+                            </div>
+                            <div className="admin-card-item-row">
+                              <span className="admin-card-item-label">Balance</span>
+                              <span className="admin-card-item-value">₦{getDisplayBalance(p).toLocaleString()}</span>
+                            </div>
+                            <div className="admin-card-item-row">
+                              <span className="admin-card-item-label">Orders</span>
+                              <span className="admin-card-item-value">{getUserOrders(p.user_id).length}</span>
+                            </div>
+                          </div>
+                        ))}
+                        {filteredProfiles.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">👥</div>No users found</div>}
+                      </>
+                    )}
                   </div>
                 </>
               )}
@@ -2057,6 +2117,8 @@ export default function AdminPanel() {
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
