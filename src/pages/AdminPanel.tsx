@@ -705,9 +705,15 @@ export default function AdminPanel() {
     navigate("/auth");
   };
 
-  const filteredProfiles = profiles.filter((p) =>
-    !search || p.username?.toLowerCase().includes(search.toLowerCase()) || p.user_id.includes(search)
-  );
+  const filteredProfiles = profiles.filter((p) => {
+    if (!search.trim()) return true;
+    const q = search.toLowerCase().trim();
+    return (
+      p.username?.toLowerCase().includes(q) ||
+      p.email?.toLowerCase().includes(q) ||
+      p.user_id.toLowerCase().includes(q)
+    );
+  });
 
   const filteredOrders = orders.filter((o) =>
     !search || o.product_title.toLowerCase().includes(search.toLowerCase()) || o.id.includes(search) || getUserName(o.user_id).toLowerCase().includes(search.toLowerCase())
