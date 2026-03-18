@@ -312,15 +312,21 @@ export default function AdminPanel() {
   };
 
   useEffect(() => {
-    if (!selectedChatUser || !adminUserId) return;
+    if (!selectedChatUser) return;
     const unreadInConversation = allMessages.filter(
-      m => m.receiver_id === adminUserId && m.sender_id === selectedChatUser && !m.is_read
+      m => m.sender_id === selectedChatUser && !m.is_read
     );
     if (unreadInConversation.length === 0) return;
+    const idsToMark = new Set(unreadInConversation.map(m => m.id));
+    setAllMessages(prev =>
+      prev.map(m => (idsToMark.has(m.id) ? { ...m, is_read: true } : m))
+    );
     (async () => {
       try {
         await Promise.all(
-          unreadInConversation.map(msg => api(`/messages/${msg.id}/read`, { method: "PATCH" }))
+          unreadInConversation.map(msg =>
+            api(`/admin/messages/${msg.id}/read`, { method: "PATCH" })
+          )
         );
         const msgs = await api<Message[]>("/admin/messages");
         setAllMessages(Array.isArray(msgs) ? msgs : []);
@@ -328,7 +334,7 @@ export default function AdminPanel() {
         console.error("Mark messages read:", e);
       }
     })();
-  }, [selectedChatUser, adminUserId, allMessages]);
+  }, [selectedChatUser, allMessages]);
 
   const getMessageUserDisplay = (userId: string) => {
     const msg = allMessages.find(m => m.sender_id === userId || m.receiver_id === userId);

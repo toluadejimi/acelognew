@@ -80,6 +80,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/user-roles/{userRole}', [UserRoleController::class, 'destroy']);
     Route::get('/messages', [MessageController::class, 'adminIndex']);
     Route::post('/messages', [MessageController::class, 'store']);
+    Route::patch('/messages/{message}/read', [MessageController::class, 'adminMarkRead']);
     Route::get('/broadcast-messages', [BroadcastMessageController::class, 'adminIndex']);
     Route::post('/broadcast-messages', [BroadcastMessageController::class, 'store']);
     Route::put('/broadcast-messages/{broadcastMessage}', [BroadcastMessageController::class, 'update']);

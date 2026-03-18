@@ -90,6 +90,12 @@ class MessageController extends Controller
         return response()->json($this->mapMessage($message->fresh()));
     }
 
+    public function adminMarkRead(Message $message): JsonResponse
+    {
+        $message->update(['is_read' => true]);
+        return response()->json($this->mapMessage($message->fresh()));
+    }
+
     private function mapMessages($messages): array
     {
         return $messages->map(fn ($m) => $this->mapMessage($m))->values()->all();
