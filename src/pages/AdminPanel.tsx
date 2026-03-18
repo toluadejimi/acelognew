@@ -77,6 +77,8 @@ interface Message {
   order_id: string | null;
   sender_id: string;
   receiver_id: string;
+  sender_display?: string;
+  receiver_display?: string;
   content: string;
   attachment_url?: string | null;
   is_read: boolean;
@@ -182,6 +184,9 @@ export default function AdminPanel() {
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [selectedChatUser, setSelectedChatUser] = useState<string | null>(null);
   const [adminMsgInput, setAdminMsgInput] = useState("");
+  const [adminPendingAttachmentUrl, setAdminPendingAttachmentUrl] = useState<string | null>(null);
+  const [adminAttachmentUploading, setAdminAttachmentUploading] = useState(false);
+  const adminMessageFileInputRef = useRef<HTMLInputElement>(null);
   const [logModalTab, setLogModalTab] = useState<"single" | "bulk">("bulk");
   const [bulkLogInput, setBulkLogInput] = useState("");
   const [logProductSearch, setLogProductSearch] = useState("");
@@ -306,20 +311,58 @@ export default function AdminPanel() {
     );
   };
 
+  const getMessageUserDisplay = (userId: string) => {
+    const msg = allMessages.find(m => m.sender_id === userId || m.receiver_id === userId);
+    if (msg) {
+      if (msg.sender_id === userId && msg.sender_display) return msg.sender_display;
+      if (msg.receiver_id === userId && msg.receiver_display) return msg.receiver_display;
+    }
+    return getUserName(userId);
+  };
+
   const sendAdminMessage = async () => {
-    if (!adminMsgInput.trim() || !selectedChatUser || !adminUserId) return;
+    const content = adminMsgInput.trim();
+    if ((!content && !adminPendingAttachmentUrl) || !selectedChatUser || !adminUserId) return;
     try {
       await api("/admin/messages", {
         method: "POST",
         body: JSON.stringify({
-          content: adminMsgInput.trim(),
+          content: content || undefined,
+          attachment_url: adminPendingAttachmentUrl || undefined,
           receiver_id: selectedChatUser,
         }),
       });
       setAdminMsgInput("");
+      setAdminPendingAttachmentUrl(null);
       loadAll();
     } catch {
       toast.error("Failed to send");
+    }
+  };
+
+  const handleAdminAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    if (!["jpg", "jpeg", "png", "webp", "gif"].includes(ext || "")) {
+      toast.error("Allowed: JPG, PNG, WebP, GIF");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB");
+      return;
+    }
+    setAdminAttachmentUploading(true);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      const res = await apiFormData<{ url: string }>("/messages/upload", form);
+      if (res?.url) setAdminPendingAttachmentUrl(res.url);
+    } catch {
+      toast.error("Failed to upload image");
+    } finally {
+      setAdminAttachmentUploading(false);
+      e.target.value = "";
     }
   };
 
@@ -333,7 +376,10 @@ export default function AdminPanel() {
 
   const getUserName = (userId: string) => {
     const p = profiles.find((x) => x.user_id === userId);
-    return p?.username || userId.slice(0, 8);
+    const name = p?.username?.trim();
+    if (name) return name;
+    if (p?.email) return p.email;
+    return userId.slice(0, 8);
   };
 
   const isUserAdmin = (userId: string) => roles.some((r) => r.user_id === userId && r.role === "admin");
@@ -1918,103 +1964,125 @@ export default function AdminPanel() {
 
           {/* MESSAGES */}
           {tab === "messages" && (
-            <>
+            <div className="admin-messages-wrap">
               <h2 className="admin-section-title">💬 User Messages</h2>
-              <div className="admin-chat-layout" style={{ display: "flex", gap: 16, height: 600, overflow: "hidden" }}>
-                <div style={{
-                  width: selectedChatUser ? "0" : "220px",
-                  minWidth: selectedChatUser ? "0" : "220px",
-                  overflow: "hidden",
-                  transition: "all 0.2s",
-                  borderRight: selectedChatUser ? "none" : "1px solid hsl(220 20% 90%)",
-                  paddingRight: selectedChatUser ? 0 : 12,
-                }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: "hsl(220 10% 50%)", marginBottom: 8, textTransform: "uppercase" }}>Conversations</div>
+              <div className="admin-messages-layout">
+                <aside className={`admin-messages-sidebar ${selectedChatUser ? "admin-messages-sidebar--collapsed" : ""}`}>
+                  <div className="admin-messages-sidebar-title">Conversations</div>
                   {getChatUsers().length === 0 ? (
-                    <div style={{ color: "hsl(220 10% 60%)", fontSize: 13, padding: 12 }}>No messages yet</div>
+                    <div className="admin-messages-empty-list">No conversations yet</div>
                   ) : (
-                    getChatUsers().map(uid => {
-                      const unread = allMessages.filter(m => m.sender_id === uid && !m.is_read).length;
-                      return (
-                        <div
-                          key={uid}
-                          onClick={() => setSelectedChatUser(uid)}
-                          style={{
-                            padding: "10px 12px", borderRadius: 8, cursor: "pointer", marginBottom: 4,
-                            background: selectedChatUser === uid ? "hsl(var(--admin-accent))" : "transparent",
-                            color: selectedChatUser === uid ? "white" : "inherit",
-                          }}
-                        >
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{getUserName(uid)}</div>
-                          {unread > 0 && <span style={{ background: "hsl(0 70% 50%)", color: "white", borderRadius: 10, padding: "1px 8px", fontSize: 11, fontWeight: 700 }}>{unread}</span>}
-                        </div>
-                      );
-                    })
+                    <ul className="admin-messages-conv-list">
+                      {getChatUsers().map(uid => {
+                        const unread = allMessages.filter(m => m.sender_id === uid && !m.is_read).length;
+                        return (
+                          <li key={uid}>
+                            <button
+                              type="button"
+                              className={`admin-messages-conv-btn ${selectedChatUser === uid ? "active" : ""}`}
+                              onClick={() => setSelectedChatUser(uid)}
+                            >
+                              <span className="admin-messages-conv-avatar">{getMessageUserDisplay(uid).slice(0, 1).toUpperCase()}</span>
+                              <span className="admin-messages-conv-name">{getMessageUserDisplay(uid)}</span>
+                              {unread > 0 && <span className="admin-messages-conv-badge">{unread}</span>}
+                            </button>
+                          </li>
+                        );
+                      })}
+                    </ul>
                   )}
-                </div>
+                </aside>
 
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <div className="admin-messages-main">
                   {!selectedChatUser ? (
-                    <div style={{ textAlign: "center", color: "hsl(220 10% 60%)", padding: 60 }}>
-                      <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
-                      <p>Select a conversation to view messages</p>
+                    <div className="admin-messages-welcome">
+                      <div className="admin-messages-welcome-icon"><i className="fa-regular fa-comments" /></div>
+                      <p className="admin-messages-welcome-title">Select a conversation</p>
+                      <p className="admin-messages-welcome-desc">Choose a user from the list to view and reply to messages</p>
                     </div>
                   ) : (
                     <>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid hsl(220 20% 90%)", paddingBottom: 12, marginBottom: 12 }}>
-                        <button className="admin-btn admin-btn-sm admin-chat-back" onClick={() => setSelectedChatUser(null)}>←</button>
-                        <div style={{ fontWeight: 700, fontSize: 16 }}>
-                          {getUserName(selectedChatUser)}
+                      <header className="admin-messages-header">
+                        <button type="button" className="admin-messages-back" onClick={() => setSelectedChatUser(null)} aria-label="Back">
+                          <i className="fa-solid fa-arrow-left" />
+                        </button>
+                        <div className="admin-messages-header-avatar">{getMessageUserDisplay(selectedChatUser).slice(0, 1).toUpperCase()}</div>
+                        <div className="admin-messages-header-info">
+                          <span className="admin-messages-header-name">{getMessageUserDisplay(selectedChatUser)}</span>
+                          <span className="admin-messages-header-status">User conversation</span>
                         </div>
-                      </div>
+                      </header>
 
-                      <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, marginBottom: 12, maxHeight: 450, padding: "4px 0" }}>
+                      <div className="admin-messages-list">
                         {getChatMessages(selectedChatUser).map(msg => (
                           <div
                             key={msg.id}
-                            style={{
-                              alignSelf: msg.sender_id === adminUserId ? "flex-end" : "flex-start",
-                              background: msg.sender_id === adminUserId ? "hsl(var(--admin-accent))" : "hsl(220 20% 93%)",
-                              color: msg.sender_id === adminUserId ? "white" : "hsl(220 20% 15%)",
-                              padding: "10px 14px",
-                              borderRadius: msg.sender_id === adminUserId ? "14px 14px 0 14px" : "14px 14px 14px 0",
-                              maxWidth: "75%",
-                              fontSize: 13,
-                              marginLeft: msg.sender_id === adminUserId ? "auto" : "0",
-                              marginRight: msg.sender_id === adminUserId ? "0" : "auto",
-                              wordBreak: "break-word",
-                            }}
+                            className={`admin-messages-bubble ${msg.sender_id === adminUserId ? "admin-messages-bubble--sent" : "admin-messages-bubble--received"}`}
                           >
                             {msg.attachment_url && (
-                              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" style={{ display: "block", marginBottom: 6 }}>
-                                <img src={msg.attachment_url} alt="Attachment" style={{ maxWidth: "100%", maxHeight: 180, borderRadius: 8, objectFit: "cover" }} />
+                              <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="admin-messages-bubble-img-wrap">
+                                <img src={msg.attachment_url} alt="Attachment" className="admin-messages-bubble-img" />
                               </a>
                             )}
-                            {msg.content && <div>{msg.content}</div>}
-                            <div style={{ fontSize: 10, opacity: 0.7, marginTop: 4, textAlign: "right" }}>
-                              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {msg.content && <div className="admin-messages-bubble-text">{msg.content}</div>}
+                            <div className="admin-messages-bubble-meta">
+                              {new Date(msg.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                             </div>
                           </div>
                         ))}
                       </div>
 
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                          type="text"
-                          className="admin-form-input"
-                          placeholder="Type a reply..."
-                          value={adminMsgInput}
-                          onChange={(e) => setAdminMsgInput(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") sendAdminMessage(); }}
-                          style={{ flex: 1 }}
-                        />
-                        <button className="admin-btn admin-btn-primary" onClick={sendAdminMessage}>Send</button>
+                      <div className="admin-messages-composer">
+                        {adminPendingAttachmentUrl && (
+                          <div className="admin-messages-attach-preview">
+                            <img src={adminPendingAttachmentUrl} alt="Attach" />
+                            <button type="button" className="admin-messages-attach-remove" onClick={() => setAdminPendingAttachmentUrl(null)} aria-label="Remove image">
+                              <i className="fa-solid fa-times" />
+                            </button>
+                          </div>
+                        )}
+                        <div className="admin-messages-composer-row">
+                          <input
+                            ref={adminMessageFileInputRef}
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp,image/gif"
+                            className="admin-messages-file-input"
+                            onChange={handleAdminAttachmentChange}
+                            aria-label="Upload image"
+                          />
+                          <button
+                            type="button"
+                            className="admin-messages-composer-btn admin-messages-composer-btn--attach"
+                            onClick={() => adminMessageFileInputRef.current?.click()}
+                            disabled={adminAttachmentUploading}
+                            title="Attach image"
+                          >
+                            {adminAttachmentUploading ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-image" />}
+                          </button>
+                          <input
+                            type="text"
+                            className="admin-messages-composer-input"
+                            placeholder="Type a reply..."
+                            value={adminMsgInput}
+                            onChange={(e) => setAdminMsgInput(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendAdminMessage(); } }}
+                          />
+                          <button
+                            type="button"
+                            className="admin-messages-composer-btn admin-messages-composer-btn--send"
+                            onClick={sendAdminMessage}
+                            disabled={(!adminMsgInput.trim() && !adminPendingAttachmentUrl) || adminAttachmentUploading}
+                          >
+                            <i className="fa-solid fa-paper-plane" />
+                            <span>Send</span>
+                          </button>
+                        </div>
                       </div>
                     </>
                   )}
                 </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* BROADCASTS */}

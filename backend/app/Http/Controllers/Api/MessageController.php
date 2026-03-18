@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Message;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -59,7 +60,17 @@ class MessageController extends Controller
     public function adminIndex(): JsonResponse
     {
         $messages = Message::orderBy('created_at')->limit(5000)->get();
-        return response()->json($this->mapMessages($messages));
+        $userIds = $messages->pluck('sender_id')->merge($messages->pluck('receiver_id'))->unique()->filter()->values()->all();
+        $users = User::with('profile')->whereIn('id', $userIds)->get()->keyBy('id');
+        $displayByUserId = [];
+        foreach ($users as $id => $user) {
+            $profile = $user->relationLoaded('profile') ? $user->profile : null;
+            $displayByUserId[(string) $id] = $profile && trim((string) $profile->username) !== ''
+                ? trim($profile->username)
+                : ($user->email ?? (string) $id);
+        }
+        $mapped = $messages->map(fn ($m) => $this->mapMessageForAdmin($m, $displayByUserId))->values()->all();
+        return response()->json($mapped);
     }
 
     public function markRead(Request $request, Message $message): JsonResponse
@@ -83,6 +94,22 @@ class MessageController extends Controller
             'id' => $m->id,
             'sender_id' => $m->sender_id,
             'receiver_id' => $m->receiver_id,
+            'content' => $m->content ?? '',
+            'attachment_url' => $m->attachment_url,
+            'order_id' => $m->order_id,
+            'is_read' => $m->is_read,
+            'created_at' => $m->created_at?->toIso8601String(),
+        ];
+    }
+
+    private function mapMessageForAdmin(Message $m, array $displayByUserId): array
+    {
+        return [
+            'id' => $m->id,
+            'sender_id' => $m->sender_id,
+            'receiver_id' => $m->receiver_id,
+            'sender_display' => $displayByUserId[(string) $m->sender_id] ?? (string) $m->sender_id,
+            'receiver_display' => $displayByUserId[(string) $m->receiver_id] ?? (string) $m->receiver_id,
             'content' => $m->content ?? '',
             'attachment_url' => $m->attachment_url,
             'order_id' => $m->order_id,
