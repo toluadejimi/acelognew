@@ -311,13 +311,37 @@ export default function AdminPanel() {
     );
   };
 
+  useEffect(() => {
+    if (!selectedChatUser || !adminUserId) return;
+    const unreadInConversation = allMessages.filter(
+      m => m.receiver_id === adminUserId && m.sender_id === selectedChatUser && !m.is_read
+    );
+    if (unreadInConversation.length === 0) return;
+    (async () => {
+      try {
+        await Promise.all(
+          unreadInConversation.map(msg => api(`/messages/${msg.id}/read`, { method: "PATCH" }))
+        );
+        const msgs = await api<Message[]>("/admin/messages");
+        setAllMessages(Array.isArray(msgs) ? msgs : []);
+      } catch (e) {
+        console.error("Mark messages read:", e);
+      }
+    })();
+  }, [selectedChatUser, adminUserId, allMessages]);
+
   const getMessageUserDisplay = (userId: string) => {
     const msg = allMessages.find(m => m.sender_id === userId || m.receiver_id === userId);
+    let display: string;
     if (msg) {
-      if (msg.sender_id === userId && msg.sender_display) return msg.sender_display;
-      if (msg.receiver_id === userId && msg.receiver_display) return msg.receiver_display;
+      if (msg.sender_id === userId && msg.sender_display) display = msg.sender_display;
+      else if (msg.receiver_id === userId && msg.receiver_display) display = msg.receiver_display;
+      else display = getUserName(userId);
+    } else {
+      display = getUserName(userId);
     }
-    return getUserName(userId);
+    if (!display || /^[0-9a-f-]{36}$/i.test(display.trim())) return "User";
+    return display;
   };
 
   const sendAdminMessage = async () => {

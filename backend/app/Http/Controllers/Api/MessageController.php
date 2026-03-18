@@ -65,9 +65,16 @@ class MessageController extends Controller
         $displayByUserId = [];
         foreach ($users as $id => $user) {
             $profile = $user->relationLoaded('profile') ? $user->profile : null;
-            $displayByUserId[(string) $id] = $profile && trim((string) $profile->username) !== ''
+            $name = $profile && trim((string) $profile->username) !== ''
                 ? trim($profile->username)
-                : ($user->email ?? (string) $id);
+                : ($user->email ?? null);
+            $displayByUserId[(string) $id] = $name ?? 'User';
+        }
+        foreach ($userIds as $id) {
+            $id = (string) $id;
+            if (!isset($displayByUserId[$id])) {
+                $displayByUserId[$id] = 'User';
+            }
         }
         $mapped = $messages->map(fn ($m) => $this->mapMessageForAdmin($m, $displayByUserId))->values()->all();
         return response()->json($mapped);
@@ -108,8 +115,8 @@ class MessageController extends Controller
             'id' => $m->id,
             'sender_id' => $m->sender_id,
             'receiver_id' => $m->receiver_id,
-            'sender_display' => $displayByUserId[(string) $m->sender_id] ?? (string) $m->sender_id,
-            'receiver_display' => $displayByUserId[(string) $m->receiver_id] ?? (string) $m->receiver_id,
+            'sender_display' => $displayByUserId[(string) $m->sender_id] ?? 'User',
+            'receiver_display' => $displayByUserId[(string) $m->receiver_id] ?? 'User',
             'content' => $m->content ?? '',
             'attachment_url' => $m->attachment_url,
             'order_id' => $m->order_id,
