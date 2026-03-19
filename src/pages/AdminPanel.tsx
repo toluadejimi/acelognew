@@ -319,6 +319,28 @@ export default function AdminPanel() {
     }
   };
 
+  /** Only refetch logs + products (stock). Fast — avoids full admin reload after log delete/upload. */
+  const refreshAccountLogsAndProducts = async () => {
+    try {
+      const [al, pr] = await Promise.all([
+        api<{ logs: AccountLog[]; total: number; unsold: number }>("/admin/account-logs?limit=5000"),
+        api<Product[]>("/admin/products"),
+      ]);
+      if (al && typeof al === "object" && "logs" in al && Array.isArray((al as { logs: AccountLog[] }).logs)) {
+        const payload = al as { logs: AccountLog[]; total?: number; unsold?: number };
+        setAccountLogs(payload.logs);
+        setLogStats({ total: payload.total ?? 0, unsold: payload.unsold ?? 0 });
+      } else if (Array.isArray(al)) {
+        setAccountLogs(al);
+        setLogStats({ total: al.length, unsold: al.filter((l: AccountLog) => !l.is_sold).length });
+      }
+      if (Array.isArray(pr)) setProducts(pr);
+    } catch (e) {
+      console.error("refreshAccountLogsAndProducts:", e);
+      await loadAll();
+    }
+  };
+
   const handleAdminRefresh = async () => {
     setAdminRefreshing(true);
     try {
@@ -727,7 +749,7 @@ export default function AdminPanel() {
       });
       toast.success("Account log added!");
       setLogForm({ ...logForm, login: "", password: "" });
-      loadAll();
+      await refreshAccountLogsAndProducts();
     } catch {
       toast.error("Failed to create log");
     }
@@ -735,12 +757,22 @@ export default function AdminPanel() {
 
   const deleteLog = async (id: string) => {
     if (!confirm("Delete this log?")) return;
+    const prevLogs = accountLogs;
+    const prevStats = logStats;
+    setAccountLogs((p) => p.filter((l) => l.id !== id));
+    setSelectedLogIds((prev) => prev.filter((x) => x !== id));
+    const removed = prevLogs.find((l) => l.id === id);
+    setLogStats((s) => ({
+      total: Math.max(0, s.total - 1),
+      unsold: Math.max(0, s.unsold - (removed && !removed.is_sold ? 1 : 0)),
+    }));
     try {
       await api(`/admin/account-logs/${id}`, { method: "DELETE" });
       toast.success("Log deleted");
-      setSelectedLogIds((prev) => prev.filter((x) => x !== id));
-      loadAll();
+      await refreshAccountLogsAndProducts();
     } catch {
+      setAccountLogs(prevLogs);
+      setLogStats(prevStats);
       toast.error("Failed to delete");
     }
   };
@@ -749,6 +781,16 @@ export default function AdminPanel() {
     const ids = [...new Set(selectedLogIds)];
     if (ids.length === 0) return;
     if (!confirm(`Delete ${ids.length} selected log(s)? This cannot be undone.`)) return;
+    const idSet = new Set(ids);
+    const prevLogs = accountLogs;
+    const prevStats = logStats;
+    const unsoldRemoved = prevLogs.filter((l) => idSet.has(l.id) && !l.is_sold).length;
+    setAccountLogs((p) => p.filter((l) => !idSet.has(l.id)));
+    setSelectedLogIds([]);
+    setLogStats((s) => ({
+      total: Math.max(0, s.total - ids.length),
+      unsold: Math.max(0, s.unsold - unsoldRemoved),
+    }));
     const chunkSize = 500;
     try {
       for (let i = 0; i < ids.length; i += chunkSize) {
@@ -756,9 +798,10 @@ export default function AdminPanel() {
         await api("/admin/account-logs/bulk-delete", { method: "POST", body: JSON.stringify({ ids: chunk }) });
       }
       toast.success(`Deleted ${ids.length} log(s)`);
-      setSelectedLogIds([]);
-      loadAll();
+      await refreshAccountLogsAndProducts();
     } catch {
+      setAccountLogs(prevLogs);
+      setLogStats(prevStats);
       toast.error("Failed to delete selected logs");
     }
   };
@@ -793,7 +836,7 @@ export default function AdminPanel() {
       setBulkLogInput("");
       setLogForm({ product_id: "", login: "", password: "", description: "" });
       setShowLogModal(false);
-      loadAll();
+      await refreshAccountLogsAndProducts();
     } catch {
       toast.error("Failed to upload logs");
     }

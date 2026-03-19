@@ -62,17 +62,22 @@ class AccountLogController extends Controller
 
     public function bulkDestroy(Request $request): JsonResponse
     {
+        // Only validate shape — do not require exists:* (stale IDs from the UI would otherwise 422).
         $validated = $request->validate([
             'ids' => ['required', 'array', 'min:1', 'max:500'],
-            'ids.*' => ['required', 'uuid', 'exists:account_logs,id'],
+            'ids.*' => ['required', 'string', 'max:64'],
         ]);
-        $logs = AccountLog::whereIn('id', $validated['ids'])->get();
+        $ids = array_values(array_unique(array_filter($validated['ids'])));
+        if ($ids === []) {
+            return response()->json(['message' => 'No valid ids provided.', 'errors' => ['ids' => ['No valid ids provided.']]], 422);
+        }
+        $logs = AccountLog::whereIn('id', $ids)->get();
         $productIds = $logs->pluck('product_id')->unique()->values()->all();
-        AccountLog::whereIn('id', $validated['ids'])->delete();
+        $deleted = AccountLog::whereIn('id', $ids)->delete();
         foreach ($productIds as $productId) {
             Product::refreshStockFromLogs($productId);
         }
-        return response()->json(['deleted' => count($validated['ids'])]);
+        return response()->json(['deleted' => $deleted]);
     }
 
     public function bulkStore(Request $request): JsonResponse
