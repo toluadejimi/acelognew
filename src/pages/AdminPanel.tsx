@@ -120,6 +120,34 @@ interface BroadcastMessage {
   updated_at: string;
 }
 
+/** Normalize line endings and strip UTF-8 BOM so full file content is preserved. */
+function normalizeLogFileText(raw: string): string {
+  let s = raw;
+  if (s.length > 0 && s.charCodeAt(0) === 0xfeff) s = s.slice(1);
+  return s.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function countNonEmptyLines(text: string): number {
+  return text.split("\n").filter((l) => l.trim().length > 0).length;
+}
+
+/**
+ * Parse one log line: split only on the FIRST delimiter so login/password can contain :, |, commas.
+ * Order: tab, |, :, comma. If none, whole line is login (password empty).
+ */
+function parseLogLine(trimmed: string): { login: string; password: string } | null {
+  if (!trimmed) return null;
+  const withSep = (sep: string): { login: string; password: string } | null => {
+    const i = trimmed.indexOf(sep);
+    if (i < 0) return null;
+    return {
+      login: trimmed.slice(0, i).trim(),
+      password: trimmed.slice(i + sep.length).trim(),
+    };
+  };
+  return withSep("\t") ?? withSep("|") ?? withSep(":") ?? withSep(",") ?? { login: trimmed, password: "" };
+}
+
 const NAV: { label: string; icon: string; tab: AdminTab }[] = [
   { label: "Overview", icon: "📊", tab: "overview" },
   { label: "Users", icon: "👥", tab: "users" },
@@ -203,6 +231,7 @@ export default function AdminPanel() {
   const [usersLastPage, setUsersLastPage] = useState(1);
   const [adminLoading, setAdminLoading] = useState(true);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [adminRefreshing, setAdminRefreshing] = useState(false);
   const initialLoadDone = useRef(false);
   useEffect(() => { loadAll(); }, []);
 
@@ -287,6 +316,19 @@ export default function AdminPanel() {
     } finally {
       initialLoadDone.current = true;
       setAdminLoading(false);
+    }
+  };
+
+  const handleAdminRefresh = async () => {
+    setAdminRefreshing(true);
+    try {
+      await loadAll();
+      if (tab === "users") await fetchProfilesPage(usersPage, search);
+      toast.success("Data refreshed");
+    } catch {
+      toast.error("Refresh failed");
+    } finally {
+      setAdminRefreshing(false);
     }
   };
 
@@ -724,23 +766,30 @@ export default function AdminPanel() {
   const saveBulkLogs = async () => {
     if (!logForm.product_id || !bulkLogInput.trim()) { toast.error("Select a product and enter logs"); return; }
 
-    const lines = bulkLogInput.trim().split("\n");
-    const logsToInsert = lines.map(line => {
-      const trimmed = line.trim();
-      if (!trimmed) return null;
-      const [login, password] = trimmed.split(/[:|,]/).map(s => s.trim());
-      return {
+    const lines = normalizeLogFileText(bulkLogInput).split("\n");
+    const logsToInsert: { product_id: string; login: string; password: string }[] = [];
+    for (const line of lines) {
+      const parsed = parseLogLine(line.trim());
+      if (!parsed || !parsed.login) continue;
+      logsToInsert.push({
         product_id: logForm.product_id,
-        login: login || trimmed,
-        password: password || "",
-      };
-    }).filter(Boolean) as { product_id: string; login: string; password: string }[];
+        login: parsed.login,
+        password: parsed.password,
+      });
+    }
 
-    if (logsToInsert.length === 0) { toast.error("No valid logs found. Format: username:password"); return; }
+    if (logsToInsert.length === 0) {
+      toast.error("No valid logs found. Use one line per account: login:password (or tab / | / comma). Extra colons in the password are kept.");
+      return;
+    }
 
+    const BATCH = 250;
     try {
-      await api("/admin/account-logs/bulk", { method: "POST", body: JSON.stringify({ logs: logsToInsert }) });
-      toast.success(`Successfully added ${logsToInsert.length} logs!`);
+      for (let i = 0; i < logsToInsert.length; i += BATCH) {
+        const chunk = logsToInsert.slice(i, i + BATCH);
+        await api("/admin/account-logs/bulk", { method: "POST", body: JSON.stringify({ logs: chunk }) });
+      }
+      toast.success(`Successfully added ${logsToInsert.length.toLocaleString()} log(s)!`);
       setBulkLogInput("");
       setLogForm({ product_id: "", login: "", password: "", description: "" });
       setShowLogModal(false);
@@ -754,11 +803,19 @@ export default function AdminPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target?.result as string;
-      setBulkLogInput(content);
+    reader.onload = (ev) => {
+      const raw = ev.target?.result;
+      if (typeof raw !== "string") {
+        toast.error("Could not read file as text");
+        return;
+      }
+      const normalized = normalizeLogFileText(raw);
+      setBulkLogInput(normalized);
+      toast.success(`Loaded ${file.name} — ${countNonEmptyLines(normalized)} non-empty line(s)`);
     };
-    reader.readAsText(file);
+    reader.onerror = () => toast.error("Failed to read file");
+    reader.readAsText(file, "UTF-8");
+    e.target.value = "";
   };
 
   // Category CRUD
@@ -1146,16 +1203,19 @@ export default function AdminPanel() {
 
           <div className="admin-form-group">
             <label className="admin-form-label">Upload TXT File</label>
-            <input type="file" accept=".txt" onChange={handleFileUpload} className="admin-form-input" />
+            <input type="file" accept=".txt,.csv,text/plain" onChange={handleFileUpload} className="admin-form-input" />
+            <p style={{ fontSize: 12, color: "hsl(var(--admin-muted))", marginTop: 6 }}>
+              UTF-8, Windows or Unix line endings. One account per line: <code>login:password</code> (only the first <code>:</code>, <code>|</code>, tab, or comma splits — rest stays in the password).
+            </p>
           </div>
           <div className="admin-form-group">
             <label className="admin-form-label">Or Paste Logs</label>
             <textarea
               className="admin-form-input"
-              rows={8}
+              rows={10}
               value={bulkLogInput}
               onChange={(e) => setBulkLogInput(e.target.value)}
-              placeholder=""
+              placeholder={"user@email.com:password123\nanother_user|secret:with:colons\nthird\tpass phrase with spaces"}
             />
           </div>
           <div className="admin-form-actions">
@@ -1325,7 +1385,20 @@ export default function AdminPanel() {
       {/* Main */}
       <div className="admin-main">
         <div className="admin-topbar">
-          <div className="admin-topbar-title">{NAV.find((n) => n.tab === tab)?.icon} {NAV.find((n) => n.tab === tab)?.label || "Admin"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+            <div className="admin-topbar-title">{NAV.find((n) => n.tab === tab)?.icon} {NAV.find((n) => n.tab === tab)?.label || "Admin"}</div>
+            <button
+              type="button"
+              className="admin-btn admin-btn-sm"
+              style={{ background: "hsl(220 20% 93%)", display: "inline-flex", alignItems: "center", gap: 6 }}
+              onClick={handleAdminRefresh}
+              disabled={adminRefreshing || adminLoading}
+              title="Reload all admin data from server"
+            >
+              {adminRefreshing ? <i className="fa-solid fa-spinner fa-spin" /> : <i className="fa-solid fa-arrows-rotate" />}
+              Refresh
+            </button>
+          </div>
           {["users", "orders", "transactions", "logs"].includes(tab) && (
             <div className="admin-search">
               <span style={{ fontSize: 14 }}>🔍</span>
