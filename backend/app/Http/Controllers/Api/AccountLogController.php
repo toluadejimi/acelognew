@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\AccountLog;
 use App\Models\Order;
 use App\Models\Product;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -24,6 +25,49 @@ class AccountLogController extends Controller
             'logs' => $this->mapLogs($logs),
             'total' => $total,
             'unsold' => $unsold,
+        ]);
+    }
+
+    // Used by the admin UI to warn/skip oversize log lines before bulk insert.
+    // Prevents MySQL "Data too long for column 'password'" 500s.
+    public function limits(): JsonResponse
+    {
+        $driver = DB::getDriverName();
+
+        if ($driver !== 'mysql') {
+            return response()->json([
+                'driver' => $driver,
+                'loginMaxLen' => null,
+                'passwordMaxLen' => null,
+                'loginColumnType' => null,
+                'passwordColumnType' => null,
+            ]);
+        }
+
+        $dbName = DB::connection()->getDatabaseName();
+
+        $columns = DB::table('information_schema.columns')
+            ->select([
+                'COLUMN_NAME as column_name',
+                'CHARACTER_MAXIMUM_LENGTH as character_maximum_length',
+                'COLUMN_TYPE as column_type',
+                'DATA_TYPE as data_type',
+            ])
+            ->where('table_schema', $dbName)
+            ->where('table_name', 'account_logs')
+            ->whereIn('column_name', ['login', 'password'])
+            ->get()
+            ->keyBy('column_name');
+
+        $login = $columns->get('login');
+        $password = $columns->get('password');
+
+        return response()->json([
+            'driver' => $driver,
+            'loginMaxLen' => $login && $login->character_maximum_length !== null ? (int) $login->character_maximum_length : null,
+            'passwordMaxLen' => $password && $password->character_maximum_length !== null ? (int) $password->character_maximum_length : null,
+            'loginColumnType' => $login?->column_type,
+            'passwordColumnType' => $password?->column_type,
         ]);
     }
 

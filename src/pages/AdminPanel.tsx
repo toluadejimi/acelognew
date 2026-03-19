@@ -209,6 +209,9 @@ export default function AdminPanel() {
   const [productForm, setProductForm] = useState({ title: "", description: "", price: 0, stock: 0, platform: "", category_id: "", currency: "NGN", image_url: "", sample_link: "" });
   const [categoryForm, setCategoryForm] = useState({ name: "", slug: "", emoji: "", display_order: 0, image_url: "" });
   const [isUploading, setIsUploading] = useState(false);
+  const [isUploadingLogs, setIsUploadingLogs] = useState(false);
+  const [accountLogLimits, setAccountLogLimits] = useState<{ loginMaxLen: number | null; passwordMaxLen: number | null } | null>(null);
+  const [accountLogLimitsLoading, setAccountLogLimitsLoading] = useState(false);
   const [adminEmail, setAdminEmail] = useState("");
   const [logForm, setLogForm] = useState({ product_id: "", login: "", password: "", description: "" });
   const [bankForm, setBankForm] = useState({ label: "", account_name: "", account_number: "", is_active: true, display_order: 0 });
@@ -234,6 +237,23 @@ export default function AdminPanel() {
   const [adminRefreshing, setAdminRefreshing] = useState(false);
   const initialLoadDone = useRef(false);
   useEffect(() => { loadAll(); }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadLimits = async () => {
+      setAccountLogLimitsLoading(true);
+      try {
+        const res = await api<{ loginMaxLen: number | null; passwordMaxLen: number | null }>(`/admin/account-logs/limits`);
+        if (!cancelled) setAccountLogLimits(res ?? null);
+      } catch {
+        // If this endpoint isn't available for some reason, we fall back to a conservative 255 check later.
+      } finally {
+        if (!cancelled) setAccountLogLimitsLoading(false);
+      }
+    };
+    loadLimits();
+    return () => { cancelled = true; };
+  }, []);
 
   const fetchProfilesPage = async (page: number, searchQuery?: string) => {
     setUsersLoading(true);
@@ -826,19 +846,60 @@ export default function AdminPanel() {
       return;
     }
 
-    const BATCH = 250;
+    // If your MySQL columns are still VARCHAR(255), the upload will 500 on long passwords.
+    // This pre-check scans the parsed lines and skips oversize entries with a warning.
+    const FALLBACK_MAX_LEN = 1000;
+    const passwordMaxLen = typeof accountLogLimits?.passwordMaxLen === "number" ? accountLogLimits.passwordMaxLen : null;
+    const loginMaxLen = typeof accountLogLimits?.loginMaxLen === "number" ? accountLogLimits.loginMaxLen : null;
+
+    // If limits haven't loaded yet, be conservative to prevent 500s.
+    const shouldFallback = accountLogLimits === null;
+    const effectivePasswordMax = passwordMaxLen ?? (shouldFallback ? FALLBACK_MAX_LEN : null);
+    const effectiveLoginMax = loginMaxLen ?? (shouldFallback ? FALLBACK_MAX_LEN : null);
+
+    let skipped = 0;
+    const safeLogs: { product_id: string; login: string; password: string }[] = [];
+    for (const l of logsToInsert) {
+      if (effectiveLoginMax !== null && l.login.length > effectiveLoginMax) { skipped++; continue; }
+      if (effectivePasswordMax !== null && l.password.length > effectivePasswordMax) { skipped++; continue; }
+      safeLogs.push(l);
+    }
+
+    if (skipped > 0) {
+      const maxLabel = [
+        effectiveLoginMax !== null ? `login<=${effectiveLoginMax}` : null,
+        effectivePasswordMax !== null ? `password<=${effectivePasswordMax}` : null,
+      ].filter(Boolean).join(", ");
+      toast.warning(`Skipped ${skipped.toLocaleString()} log(s) because ${maxLabel || "field length limit"} would overflow.`);
+    }
+    if (safeLogs.length === 0) {
+      toast.error("All parsed logs are too long for the current DB column sizes. Reduce password/login length then try again.");
+      return;
+    }
+
+    setIsUploadingLogs(true);
+    let uploadedAny = false;
     try {
-      for (let i = 0; i < logsToInsert.length; i += BATCH) {
-        const chunk = logsToInsert.slice(i, i + BATCH);
+      const BATCH = 250;
+      for (let i = 0; i < safeLogs.length; i += BATCH) {
+        const chunk = safeLogs.slice(i, i + BATCH);
         await api("/admin/account-logs/bulk", { method: "POST", body: JSON.stringify({ logs: chunk }) });
+        uploadedAny = true;
       }
-      toast.success(`Successfully added ${logsToInsert.length.toLocaleString()} log(s)!`);
+      toast.success(`Successfully added ${safeLogs.length.toLocaleString()} log(s)!${skipped > 0 ? ` (skipped ${skipped.toLocaleString()})` : ""}`);
       setBulkLogInput("");
       setLogForm({ product_id: "", login: "", password: "", description: "" });
       setShowLogModal(false);
       await refreshAccountLogsAndProducts();
     } catch {
-      toast.error("Failed to upload logs");
+      if (uploadedAny) {
+        await refreshAccountLogsAndProducts();
+        toast.error("Upload failed after some chunks. Check the updated logs list.");
+      } else {
+        toast.error("Failed to upload logs");
+      }
+    } finally {
+      setIsUploadingLogs(false);
     }
   };
 
@@ -1262,7 +1323,9 @@ export default function AdminPanel() {
             />
           </div>
           <div className="admin-form-actions">
-            <button className="admin-btn admin-btn-primary" onClick={saveBulkLogs}>Bulk Upload →</button>
+            <button className="admin-btn admin-btn-primary" onClick={saveBulkLogs} disabled={isUploadingLogs}>
+              {isUploadingLogs ? "Uploading..." : "Bulk Upload →"}
+            </button>
             <button className="admin-btn" style={{ background: "hsl(220 20% 93%)" }} onClick={() => setShowLogModal(false)}>Cancel</button>
           </div>
         </>

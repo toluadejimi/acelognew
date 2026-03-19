@@ -90,6 +90,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/account-logs/{accountLog}', [AccountLogController::class, 'destroy']);
     Route::post('/account-logs/bulk-delete', [AccountLogController::class, 'bulkDestroy']);
     Route::post('/account-logs/bulk', [AccountLogController::class, 'bulkStore']);
+    Route::get('/account-logs/limits', [AccountLogController::class, 'limits']);
     Route::get('/manual-payments', [ManualPaymentController::class, 'adminIndex']);
     Route::post('/manual-payments/{manualPayment}/approve', [ManualPaymentController::class, 'approve']);
     Route::patch('/manual-payments/{manualPayment}/reject', [ManualPaymentController::class, 'reject']);
