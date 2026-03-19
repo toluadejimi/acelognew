@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, Fragment } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
@@ -144,6 +144,9 @@ export default function AdminPanel() {
   const USERS_PER_PAGE = 50;
   const [ordersPage, setOrdersPage] = useState(1);
   const ORDERS_PER_PAGE = 50;
+  const [logsPage, setLogsPage] = useState(1);
+  const LOGS_PER_PAGE = 75;
+  const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
   const [productSearch, setProductSearch] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
@@ -693,9 +696,28 @@ export default function AdminPanel() {
     try {
       await api(`/admin/account-logs/${id}`, { method: "DELETE" });
       toast.success("Log deleted");
+      setSelectedLogIds((prev) => prev.filter((x) => x !== id));
       loadAll();
     } catch {
       toast.error("Failed to delete");
+    }
+  };
+
+  const deleteSelectedLogs = async () => {
+    const ids = [...new Set(selectedLogIds)];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected log(s)? This cannot be undone.`)) return;
+    const chunkSize = 500;
+    try {
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        await api("/admin/account-logs/bulk-delete", { method: "POST", body: JSON.stringify({ ids: chunk }) });
+      }
+      toast.success(`Deleted ${ids.length} log(s)`);
+      setSelectedLogIds([]);
+      loadAll();
+    } catch {
+      toast.error("Failed to delete selected logs");
     }
   };
 
@@ -856,6 +878,75 @@ export default function AdminPanel() {
   const filteredLogs = accountLogs.filter(l =>
     !search || getProductTitle(l.product_id).toLowerCase().includes(search.toLowerCase()) || l.login.toLowerCase().includes(search.toLowerCase())
   );
+
+  const sortedLogs = useMemo(() => {
+    const titleKey = (productId: string) => {
+      const p = products.find((pr) => pr.id === productId);
+      return (p?.title || productId.slice(0, 8)).toLowerCase();
+    };
+    return [...filteredLogs].sort((a, b) => {
+      const cmp = titleKey(a.product_id).localeCompare(titleKey(b.product_id));
+      if (cmp !== 0) return cmp;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [filteredLogs, products]);
+
+  const totalLogPages = Math.max(1, Math.ceil(sortedLogs.length / LOGS_PER_PAGE));
+  const currentLogsPage = Math.min(logsPage, totalLogPages);
+  const paginatedLogs = sortedLogs.slice(
+    (currentLogsPage - 1) * LOGS_PER_PAGE,
+    currentLogsPage * LOGS_PER_PAGE
+  );
+
+  const logGroupsOnPage = useMemo(() => {
+    const m = new Map<string, AccountLog[]>();
+    paginatedLogs.forEach((l) => {
+      const arr = m.get(l.product_id) || [];
+      arr.push(l);
+      m.set(l.product_id, arr);
+    });
+    return Array.from(m.entries()).sort((a, b) =>
+      getProductTitle(a[0]).localeCompare(getProductTitle(b[0]), undefined, { sensitivity: "base" })
+    );
+  }, [paginatedLogs, products]);
+
+  const paginatedLogIds = useMemo(() => paginatedLogs.map((l) => l.id), [paginatedLogs]);
+  const allPaginatedSelected =
+    paginatedLogIds.length > 0 && paginatedLogIds.every((id) => selectedLogIds.includes(id));
+
+  const toggleLogSelect = (id: string) => {
+    setSelectedLogIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
+
+  const toggleSelectAllPaginated = () => {
+    if (allPaginatedSelected) {
+      setSelectedLogIds((prev) => prev.filter((id) => !paginatedLogIds.includes(id)));
+    } else {
+      setSelectedLogIds((prev) => Array.from(new Set([...prev, ...paginatedLogIds])));
+    }
+  };
+
+  const toggleSelectGroupOnPage = (productId: string) => {
+    const ids = paginatedLogs.filter((l) => l.product_id === productId).map((l) => l.id);
+    const allOn = ids.length > 0 && ids.every((id) => selectedLogIds.includes(id));
+    if (allOn) {
+      setSelectedLogIds((prev) => prev.filter((id) => !ids.includes(id)));
+    } else {
+      setSelectedLogIds((prev) => Array.from(new Set([...prev, ...ids])));
+    }
+  };
+
+  useEffect(() => {
+    if (tab !== "logs") setSelectedLogIds([]);
+  }, [tab]);
+
+  useEffect(() => {
+    setLogsPage(1);
+  }, [search]);
+
+  useEffect(() => {
+    if (logsPage > totalLogPages) setLogsPage(totalLogPages);
+  }, [logsPage, totalLogPages]);
 
   const totalUserPages = Math.max(1, usersLastPage);
   const currentUsersPage = Math.min(usersPage, totalUserPages);
@@ -1782,50 +1873,164 @@ export default function AdminPanel() {
           {tab === "logs" && (
             <>
               <div className="admin-table-wrap">
-                <div className="admin-table-header">
-                  <div className="admin-table-title">Account Logs ({filteredLogs.length})</div>
-                  <button className="admin-btn admin-btn-primary" onClick={() => {
-                    setLogForm({ product_id: "", login: "", password: "", description: "" });
-                    setShowLogModal(true);
-                  }}>+ Add Log</button>
+                <div className="admin-table-header" style={{ flexWrap: "wrap", gap: 12 }}>
+                  <div className="admin-table-title">
+                    Account Logs ({sortedLogs.length.toLocaleString()}
+                    {logStats.total > sortedLogs.length && ` of ${logStats.total.toLocaleString()}`}
+                    {logStats.unsold > 0 && ` · ${logStats.unsold.toLocaleString()} unsold`})
+                  </div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {selectedLogIds.length > 0 && (
+                      <button type="button" className="admin-btn admin-btn-danger" onClick={deleteSelectedLogs}>
+                        Delete selected ({selectedLogIds.length})
+                      </button>
+                    )}
+                    <button type="button" className="admin-btn" style={{ background: "hsl(220 20% 93%)" }} onClick={() => setSelectedLogIds([])} disabled={selectedLogIds.length === 0}>
+                      Clear selection
+                    </button>
+                    <button className="admin-btn admin-btn-primary" onClick={() => {
+                      setLogForm({ product_id: "", login: "", password: "", description: "" });
+                      setShowLogModal(true);
+                    }}>+ Add Log</button>
+                  </div>
                 </div>
-                <table className="admin-table">
-                  <thead><tr><th>Product</th><th>Log</th><th>Status</th><th>Date</th><th>Actions</th></tr></thead>
-                  <tbody>
-                    {filteredLogs.map((l) => (
-                      <tr key={l.id}>
-                        <td style={{ fontWeight: 600 }}>{getProductTitle(l.product_id)}</td>
-                        <td style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", maxWidth: 400 }}>{l.login}</td>
-                        <td>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</td>
-                        <td>{new Date(l.created_at).toLocaleDateString()}</td>
-                        <td>
-                          <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLog(l.id)}>🗑️</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {filteredLogs.length === 0 && <div className="admin-empty"><div className="admin-empty-icon">🔑</div>No account logs yet<br /><button className="admin-btn admin-btn-primary" style={{ marginTop: 12 }} onClick={() => setShowLogModal(true)}>Add First Log</button></div>}
-              </div>
-
-              <div className="admin-card-list">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>Account Logs ({filteredLogs.length})</div>
-                  <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => {
-                    setLogForm({ product_id: "", login: "", password: "", description: "" });
-                    setShowLogModal(true);
-                  }}>+ Add</button>
-                </div>
-                {filteredLogs.map((l) => (
-                  <div className="admin-card-item" key={l.id}>
-                    <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>{getProductTitle(l.product_id)}</div>
-                    <div className="admin-card-item-row"><span className="admin-card-item-label">Log</span><span className="admin-card-item-value" style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>{l.login}</span></div>
-                    <div className="admin-card-item-row"><span className="admin-card-item-label">Status</span>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</div>
-                    <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                      <button className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLog(l.id)}>🗑️ Delete</button>
+                {sortedLogs.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                    <span style={{ fontSize: 13, color: "hsl(var(--admin-muted))" }}>
+                      Grouped by product title · Page {currentLogsPage} of {totalLogPages}
+                    </span>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button type="button" className="admin-btn admin-btn-sm" disabled={currentLogsPage === 1} onClick={() => setLogsPage((p) => Math.max(1, p - 1))}>← Prev</button>
+                      <button type="button" className="admin-btn admin-btn-sm" disabled={currentLogsPage === totalLogPages} onClick={() => setLogsPage((p) => Math.min(totalLogPages, p + 1))}>Next →</button>
                     </div>
                   </div>
-                ))}
+                )}
+                <table className="admin-table admin-table-logs">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 40 }}>
+                        <input
+                          type="checkbox"
+                          title="Select all on this page"
+                          checked={allPaginatedSelected}
+                          onChange={toggleSelectAllPaginated}
+                          disabled={paginatedLogIds.length === 0}
+                        />
+                      </th>
+                      <th>Product</th>
+                      <th>Log</th>
+                      <th>Status</th>
+                      <th>Date</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedLogs.map((l, idx) => {
+                      const showGroup = idx === 0 || paginatedLogs[idx - 1].product_id !== l.product_id;
+                      const groupLogs = paginatedLogs.filter((x) => x.product_id === l.product_id);
+                      const groupIds = groupLogs.map((x) => x.id);
+                      const groupAllSelected = groupIds.length > 0 && groupIds.every((id) => selectedLogIds.includes(id));
+                      return (
+                        <Fragment key={l.id}>
+                          {showGroup && (
+                            <tr className="admin-log-group-row">
+                              <td style={{ verticalAlign: "middle" }}>
+                                <input
+                                  type="checkbox"
+                                  title="Select this product’s logs on this page"
+                                  checked={groupAllSelected}
+                                  onChange={() => toggleSelectGroupOnPage(l.product_id)}
+                                />
+                              </td>
+                              <td colSpan={5} className="admin-log-group-cell">
+                                <span className="admin-log-group-title">{getProductTitle(l.product_id)}</span>
+                                <span className="admin-log-group-meta">{groupLogs.length} on this page</span>
+                              </td>
+                            </tr>
+                          )}
+                          <tr key={l.id}>
+                            <td>
+                              <input type="checkbox" checked={selectedLogIds.includes(l.id)} onChange={() => toggleLogSelect(l.id)} />
+                            </td>
+                            <td style={{ color: "hsl(var(--admin-muted))", fontSize: 13 }}>—</td>
+                            <td style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", maxWidth: 400 }}>{l.login}</td>
+                            <td>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</td>
+                            <td>{new Date(l.created_at).toLocaleDateString()}</td>
+                            <td>
+                              <button type="button" className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLog(l.id)}>🗑️</button>
+                            </td>
+                          </tr>
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {sortedLogs.length === 0 && (
+                  <div className="admin-empty">
+                    <div className="admin-empty-icon">🔑</div>
+                    {accountLogs.length === 0 && !search.trim()
+                      ? "No account logs yet"
+                      : "No account logs match your search"}
+                    <br />
+                    <button className="admin-btn admin-btn-primary" style={{ marginTop: 12 }} onClick={() => setShowLogModal(true)}>Add Log</button>
+                  </div>
+                )}
+              </div>
+
+              <div className="admin-card-list admin-card-list-logs">
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>By product (this page)</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    {selectedLogIds.length > 0 && (
+                      <button type="button" className="admin-btn admin-btn-danger admin-btn-sm" onClick={deleteSelectedLogs}>Delete ({selectedLogIds.length})</button>
+                    )}
+                    <button className="admin-btn admin-btn-primary admin-btn-sm" onClick={() => {
+                      setLogForm({ product_id: "", login: "", password: "", description: "" });
+                      setShowLogModal(true);
+                    }}>+ Add</button>
+                  </div>
+                </div>
+                {sortedLogs.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12, fontSize: 13 }}>
+                    <span style={{ color: "hsl(var(--admin-muted))" }}>Page {currentLogsPage} / {totalLogPages}</span>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <button type="button" className="admin-btn admin-btn-sm" disabled={currentLogsPage === 1} onClick={() => setLogsPage((p) => Math.max(1, p - 1))}>← Prev</button>
+                      <button type="button" className="admin-btn admin-btn-sm" disabled={currentLogsPage === totalLogPages} onClick={() => setLogsPage((p) => Math.min(totalLogPages, p + 1))}>Next →</button>
+                    </div>
+                  </div>
+                )}
+                {logGroupsOnPage.map(([productId, logs]) => {
+                  const gIds = logs.map((x) => x.id);
+                  const gAll = gIds.length > 0 && gIds.every((id) => selectedLogIds.includes(id));
+                  return (
+                    <div className="admin-log-card-group" key={productId}>
+                      <div className="admin-log-card-group-header">
+                        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", flex: 1 }}>
+                          <input type="checkbox" checked={gAll} onChange={() => toggleSelectGroupOnPage(productId)} />
+                          <span style={{ fontWeight: 700 }}>{getProductTitle(productId)}</span>
+                          <span style={{ fontSize: 12, color: "hsl(var(--admin-muted))" }}>({logs.length})</span>
+                        </label>
+                      </div>
+                      {logs.map((l) => (
+                        <div className="admin-card-item" key={l.id}>
+                          <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8, cursor: "pointer" }}>
+                            <input type="checkbox" checked={selectedLogIds.includes(l.id)} onChange={() => toggleLogSelect(l.id)} style={{ marginTop: 4 }} />
+                            <span style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", flex: 1 }}>{l.login}</span>
+                          </label>
+                          <div className="admin-card-item-row"><span className="admin-card-item-label">Status</span>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</div>
+                          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                            <button type="button" className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLog(l.id)}>🗑️ Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+                {sortedLogs.length === 0 && (
+                  <div className="admin-empty" style={{ padding: 24 }}>
+                    {accountLogs.length === 0 && !search.trim() ? "No logs yet." : "No logs match your search."}
+                  </div>
+                )}
               </div>
             </>
           )}

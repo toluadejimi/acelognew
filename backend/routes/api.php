@@ -88,6 +88,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::get('/account-logs', [AccountLogController::class, 'index']);
     Route::post('/account-logs', [AccountLogController::class, 'store']);
     Route::delete('/account-logs/{accountLog}', [AccountLogController::class, 'destroy']);
+    Route::post('/account-logs/bulk-delete', [AccountLogController::class, 'bulkDestroy']);
     Route::post('/account-logs/bulk', [AccountLogController::class, 'bulkStore']);
     Route::get('/manual-payments', [ManualPaymentController::class, 'adminIndex']);
     Route::post('/manual-payments/{manualPayment}/approve', [ManualPaymentController::class, 'approve']);

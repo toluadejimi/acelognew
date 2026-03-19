@@ -577,6 +577,63 @@
   margin-top: 20px;
 }
 
+/* Account logs: grouped by product */
+.admin-table-logs .admin-log-group-row td {
+  background: hsl(220 20% 96%);
+  border-top: 2px solid hsl(var(--admin-border));
+  padding-top: 12px;
+  padding-bottom: 8px;
+}
+
+[data-theme="dark"] .admin-table-logs .admin-log-group-row td {
+  background: hsl(220 18% 18%);
+}
+
+.admin-log-group-cell {
+  font-weight: 600;
+}
+
+.admin-log-group-title {
+  font-size: 15px;
+  color: hsl(var(--admin-text));
+  margin-right: 10px;
+}
+
+.admin-log-group-meta {
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--admin-muted));
+}
+
+.admin-log-card-group {
+  margin-bottom: 20px;
+  border: 1px solid hsl(var(--admin-border));
+  border-radius: 12px;
+  overflow: hidden;
+  background: hsl(var(--admin-card));
+}
+
+.admin-log-card-group-header {
+  padding: 12px 14px;
+  background: hsl(220 20% 96%);
+  border-bottom: 1px solid hsl(var(--admin-border));
+}
+
+[data-theme="dark"] .admin-log-card-group-header {
+  background: hsl(220 18% 18%);
+}
+
+.admin-log-card-group .admin-card-item {
+  border-radius: 0;
+  margin: 0;
+  border: none;
+  border-bottom: 1px solid hsl(var(--admin-border));
+}
+
+.admin-log-card-group .admin-card-item:last-child {
+  border-bottom: none;
+}
+
 /* Modal Tabs */
 .admin-modal-tabs {
   display: flex;

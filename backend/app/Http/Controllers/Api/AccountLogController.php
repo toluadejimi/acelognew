@@ -60,6 +60,21 @@ class AccountLogController extends Controller
         return response()->json(null, 204);
     }
 
+    public function bulkDestroy(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'ids' => ['required', 'array', 'min:1', 'max:500'],
+            'ids.*' => ['required', 'uuid', 'exists:account_logs,id'],
+        ]);
+        $logs = AccountLog::whereIn('id', $validated['ids'])->get();
+        $productIds = $logs->pluck('product_id')->unique()->values()->all();
+        AccountLog::whereIn('id', $validated['ids'])->delete();
+        foreach ($productIds as $productId) {
+            Product::refreshStockFromLogs($productId);
+        }
+        return response()->json(['deleted' => count($validated['ids'])]);
+    }
+
     public function bulkStore(Request $request): JsonResponse
     {
         $validated = $request->validate([
