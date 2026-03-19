@@ -148,6 +148,18 @@ function parseLogLine(trimmed: string): { login: string; password: string } | nu
   return withSep("\t") ?? withSep("|") ?? withSep(":") ?? withSep(",") ?? { login: trimmed, password: "" };
 }
 
+function truncateText(text: string, maxLen: number): string {
+  if (!text) return "";
+  if (text.length <= maxLen) return text;
+  return text.slice(0, maxLen) + "...";
+}
+
+function buildLogLine(l: { login: string; password: string }): string {
+  // Account logs are stored as { login, password } but we show them as a single pasted line.
+  // Current admin parsing treats "|" / ":" / comma / tab as delimiters; for display we join with "|".
+  return l.password ? `${l.login}|${l.password}` : l.login;
+}
+
 const NAV: { label: string; icon: string; tab: AdminTab }[] = [
   { label: "Overview", icon: "📊", tab: "overview" },
   { label: "Users", icon: "👥", tab: "users" },
@@ -202,6 +214,8 @@ export default function AdminPanel() {
   const [editCategory, setEditCategory] = useState<Category | null>(null);
   const [editBank, setEditBank] = useState<BankDetail | null>(null);
   const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
+  const [showLogDetailModal, setShowLogDetailModal] = useState(false);
+  const [selectedLogForDetail, setSelectedLogForDetail] = useState<AccountLog | null>(null);
   const [bulkUploadFile, setBulkUploadFile] = useState<File | null>(null);
   const [bulkUploadCategoryId, setBulkUploadCategoryId] = useState("");
   const [bulkUploadPlatform, setBulkUploadPlatform] = useState("General");
@@ -1331,6 +1345,67 @@ export default function AdminPanel() {
         </>
       ))}
 
+      {/* Log Details Modal */}
+      {renderModal(
+        showLogDetailModal,
+        () => {
+          setShowLogDetailModal(false);
+          setSelectedLogForDetail(null);
+        },
+        "Account Log Details",
+        (
+          <>
+            {selectedLogForDetail ? (
+              <>
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Product</label>
+                  <div style={{ fontWeight: 700 }}>{getProductTitle(selectedLogForDetail.product_id)}</div>
+                </div>
+
+                <div className="admin-form-group">
+                  <label className="admin-form-label">Log (as pasted)</label>
+                  <div
+                    style={{
+                      fontFamily: "monospace",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-all",
+                      maxHeight: 260,
+                      overflow: "auto",
+                      border: "1px solid hsl(220 20% 90%)",
+                      borderRadius: 8,
+                      padding: 10,
+                    }}
+                  >
+                    {buildLogLine(selectedLogForDetail)}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div className="admin-form-group" style={{ flex: 1, minWidth: 220 }}>
+                    <label className="admin-form-label">ID</label>
+                    <div style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all" }}>
+                      {selectedLogForDetail.id}
+                    </div>
+                  </div>
+                  <div className="admin-form-group" style={{ flex: 1, minWidth: 220 }}>
+                    <label className="admin-form-label">Created</label>
+                    <div style={{ fontSize: 13 }}>{new Date(selectedLogForDetail.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+
+                <div className="admin-form-actions">
+                  <button className="admin-btn admin-btn-primary" onClick={() => setShowLogDetailModal(false)}>
+                    Close
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div style={{ color: "hsl(var(--admin-muted))" }}>No log selected.</div>
+            )}
+          </>
+        )
+      )}
+
       {/* Category Modal */}
       {renderModal(showCategoryModal, () => { setShowCategoryModal(false); setEditCategory(null); }, editCategory ? "Edit Category" : "Add Category", (
         <>
@@ -2131,8 +2206,28 @@ export default function AdminPanel() {
                             <td>
                               <input type="checkbox" checked={selectedLogIds.includes(l.id)} onChange={() => toggleLogSelect(l.id)} />
                             </td>
-                            <td style={{ color: "hsl(var(--admin-muted))", fontSize: 13 }}>—</td>
-                            <td style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", maxWidth: 400 }}>{l.login}</td>
+                            <td style={{ color: "hsl(var(--admin-muted))", fontSize: 13 }} />
+                            <td style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", maxWidth: 520 }}>
+                              <div
+                                title={buildLogLine(l)}
+                                style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 480 }}
+                              >
+                                {truncateText(buildLogLine(l), 220)}
+                              </div>
+
+                              <div style={{ marginTop: 6 }}>
+                                <button
+                                  type="button"
+                                  className="admin-btn admin-btn-sm"
+                                  onClick={() => {
+                                    setSelectedLogForDetail(l);
+                                    setShowLogDetailModal(true);
+                                  }}
+                                >
+                                  👁️ View
+                                </button>
+                              </div>
+                            </td>
                             <td>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</td>
                             <td>{new Date(l.created_at).toLocaleDateString()}</td>
                             <td>
@@ -2194,10 +2289,19 @@ export default function AdminPanel() {
                         <div className="admin-card-item" key={l.id}>
                           <label style={{ display: "flex", alignItems: "flex-start", gap: 10, marginBottom: 8, cursor: "pointer" }}>
                             <input type="checkbox" checked={selectedLogIds.includes(l.id)} onChange={() => toggleLogSelect(l.id)} style={{ marginTop: 4 }} />
-                            <span style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", flex: 1 }}>{l.login}</span>
+                            <span style={{ fontFamily: "monospace", fontSize: 12, wordBreak: "break-all", flex: 1 }}>
+                              <span title={buildLogLine(l)}>{truncateText(buildLogLine(l), 90)}</span>
+                            </span>
                           </label>
                           <div className="admin-card-item-row"><span className="admin-card-item-label">Status</span>{l.is_sold ? <span className="admin-status admin-status-blocked">Sold</span> : <span className="admin-status admin-status-active">Available</span>}</div>
                           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
+                            <button
+                              type="button"
+                              className="admin-btn admin-btn-sm"
+                              onClick={() => { setSelectedLogForDetail(l); setShowLogDetailModal(true); }}
+                            >
+                              👁️ View
+                            </button>
                             <button type="button" className="admin-btn admin-btn-danger admin-btn-sm" onClick={() => deleteLog(l.id)}>🗑️ Delete</button>
                           </div>
                         </div>
