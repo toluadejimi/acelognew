@@ -1,14 +1,22 @@
-# SPA: send all requests to index.html (React Router)
+# ── Apache: SPA fallback for STATIC hosting only (Vite copies this to dist/) ──
+# If your document root is Laravel public/, do NOT use this file — use
+# backend/public/.htaccess only. Laravel + Route::fallback serves the SPA.
+#
+# This file prevents /api, /sanctum, /up from being rewritten to index.html.
+
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /
+
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteCond %{REQUEST_URI} !^/sanctum/
+  RewriteCond %{REQUEST_URI} !^/up$
   RewriteRule ^index\.html$ - [L]
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
   RewriteRule . /index.html [L]
 </IfModule>
 
-# Optional: security headers
 <IfModule mod_headers.c>
   Header set X-Content-Type-Options "nosniff"
 </IfModule>

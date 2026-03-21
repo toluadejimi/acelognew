@@ -12,6 +12,23 @@ export default defineConfig(({ mode }) => {
   const base = publicPath ? `${publicPath}/` : "/";
   const apiProxyPrefix = publicPath ? `${publicPath}/api` : "/api";
 
+  // When proxying to a remote host whose Laravel lives under a subpath (e.g. /backend/public),
+  // prepend this to /api/... so requests hit the real API (otherwise /api/* 404s on the server).
+  const devApiPathPrefix = (env.DEV_API_PATH_PREFIX || "").replace(/\/$/, "");
+
+  const apiProxy: Record<string, unknown> = {
+    target: devApiProxy,
+    changeOrigin: true,
+    secure: true,
+  };
+
+  if (publicPath) {
+    apiProxy.rewrite = (path: string) =>
+      path.replace(new RegExp(`^${publicPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "");
+  } else if (devApiPathPrefix) {
+    apiProxy.rewrite = (path: string) => `${devApiPathPrefix}${path}`;
+  }
+
   return {
     base,
     server: {
@@ -21,14 +38,7 @@ export default defineConfig(({ mode }) => {
         overlay: false,
       },
       proxy: {
-        [apiProxyPrefix]: {
-          target: devApiProxy,
-          changeOrigin: true,
-          secure: true,
-          rewrite: publicPath
-            ? (path) => path.replace(new RegExp(`^${publicPath.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`), "")
-            : undefined,
-        },
+        [apiProxyPrefix]: apiProxy,
       },
     },
     plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),

@@ -55,7 +55,7 @@ This creates a **`dist`** folder with the site (HTML, JS, CSS).
 
 1. In cPanel **File Manager**, open your Laravel app folder (e.g. `host.hotelbiza.online/backend/public/`).
 2. Upload the **contents** of local **`dist/`** into **`public/`** (same folder as `index.php`):
-   - `index.html`, `assets/`, and the root `.htaccess` from `public/` if you use SPA rewrites for a static-only host (Laravel’s own `public/.htaccess` already routes unknown paths to `index.php`, which serves the SPA).
+   - `index.html`, `assets/`, `robots.txt`, etc. **Do not** replace Laravel’s `public/.htaccess` with a “SPA-only” file that sends *all* URLs to `index.html` — that breaks **`/api/*`** (you’ll get 404 on `/api/auth/login`). Keep the **Laravel** `.htaccess` from `backend/public/` (unknown paths → `index.php`).
 3. In cPanel **Domains** → document root for this site → point to **`.../backend/public`** (not `public_html` only), if your host allows it.
 4. After upload, **hard refresh** or clear cache; rebuild if you change `.env`.
 
@@ -92,6 +92,17 @@ Wallet top-ups use the **Laravel** route:
 - **404 on refresh (Option B):** Ensure `.htaccess` was uploaded and `mod_rewrite` is on.
 - **Wrong domain/folder:** If the app lives in a subfolder, set Vite `base` and rebuild, or fix document root to `backend/public`.
 - **Still seeing a full backend URL in Network:** Rebuild with `VITE_API_URL` empty and deploy SPA into Laravel `public` (Option A).
+
+### `POST /api/...` → **404** on production (e.g. `acelogstores.online`)
+
+The API is **Laravel**, not static files. This usually means **`/api` never reaches `index.php`**.
+
+1. **cPanel → Domains** → document root for `acelogstores.online` must be the folder that contains **`index.php`** from Laravel (`.../backend/public`), **not** only `public_html` with HTML/JS and no PHP.
+2. On the server you must have the **full Laravel app**: `app/`, `bootstrap/`, `config/`, `public/`, `routes/`, `vendor/`, `backend/.env`, etc.
+3. **`public/.htaccess`** on the server must be **Laravel’s** (rewrite to `index.php`). Delete any old **SPA-only** `.htaccess` that rewrites every request to `index.html`.
+4. For a **root domain** like `https://acelogstores.online/`, **`RewriteBase` must be commented out** in `backend/public/.htaccess`. Only use `RewriteBase /something/` when the URL path includes that subfolder (e.g. `/backend/public/`).
+5. **`APP_URL`** in `backend/.env` should match the real URL, e.g. `APP_URL=https://acelogstores.online`
+6. Test: open `https://acelogstores.online/up` — Laravel should return **200** (health). If that 404s, PHP/Laravel routing isn’t wired.
 
 ### "Not Found" on `https://yourdomain.com/backend/public/`
 
