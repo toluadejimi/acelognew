@@ -43,13 +43,16 @@ Do **not** upload the whole `dist` folder as a single folder; upload **what’s 
 
 ---
 
-## Step 4: (Optional) SprintPay webhook proxy
+## Step 4: SprintPay webhook (Laravel API)
 
-If you use the PHP proxy for SprintPay:
+Wallet top-ups are handled by the **Laravel backend**, not a file in `dist`.
 
-1. Upload **`public/sprintpay-webhook-proxy.php`** into `public_html` as well.
-2. In SprintPay, set webhook URL to:  
-   `https://yourdomain.com/sprintpay-webhook-proxy.php`
+1. Deploy your Laravel app separately (e.g. `backend.predoz.com`).
+2. In SprintPay, set the webhook URL to:  
+   `https://<your-backend-domain>/api/webhooks/sprintpay`  
+3. Configure `SPRINTPAY_WEBHOOK_SECRET` on the server and send the same value in the webhook request headers (see `docs/SPRINTPAY_WEBHOOK.md`).
+
+Do **not** rely on a PHP file inside the React `dist` upload — the old `sprintpay-webhook-proxy.php` helper was removed from this repo.
 
 ---
 

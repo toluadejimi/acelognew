@@ -1,0 +1,42 @@
+# =============================================================================
+# Apache: host.hotelbiza.online → HTTPS + Laravel under /backend/public/
+# =============================================================================
+# Copy this file to your site DOCUMENT ROOT as `.htaccess` when this vhost
+# points at the folder that contains `backend/` (not inside backend/public).
+#
+# Result:
+#   http://host.hotelbiza.online/anything
+#     → https://host.hotelbiza.online/backend/public/anything
+#
+# If you only need the homepage to redirect (not every path), use the
+# ALTERNATIVE block at the bottom instead of the "Send everything" section.
+# =============================================================================
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # --- Force HTTPS for this host ---
+  RewriteCond %{HTTP_HOST} ^host\.hotelbiza\.online$ [NC]
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://host.hotelbiza.online%{REQUEST_URI} [R=301,L]
+
+  # --- Send all requests into Laravel's public folder (preserve path) ---
+  RewriteCond %{HTTP_HOST} ^host\.hotelbiza\.online$ [NC]
+  RewriteCond %{REQUEST_URI} !^/backend/public/
+  RewriteRule ^(.*)$ https://host.hotelbiza.online/backend/public/$1 [R=301,L]
+</IfModule>
+
+# Optional: security headers
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+</IfModule>
+
+# -----------------------------------------------------------------------------
+# ALTERNATIVE: redirect only the site root (/) to /backend/public/
+# Comment out the "Send all requests" block above and use this instead:
+#
+#   RewriteCond %{HTTP_HOST} ^host\.hotelbiza\.online$ [NC]
+#   RewriteCond %{REQUEST_URI} ^/?$
+#   RewriteRule ^$ https://host.hotelbiza.online/backend/public/ [R=301,L]
+# -----------------------------------------------------------------------------

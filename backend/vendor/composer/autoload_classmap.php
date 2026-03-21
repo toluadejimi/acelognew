@@ -6,9 +6,12 @@ $vendorDir = dirname(__DIR__);
 $baseDir = dirname($vendorDir);
 
 return array(
+    'App\\Console\\Commands\\ImportLegacyUsers' => $baseDir . '/app/Console/Commands/ImportLegacyUsers.php',
+    'App\\Console\\Commands\\RefreshProductStock' => $baseDir . '/app/Console/Commands/RefreshProductStock.php',
     'App\\Http\\Controllers\\Api\\AccountLogController' => $baseDir . '/app/Http/Controllers/Api/AccountLogController.php',
     'App\\Http\\Controllers\\Api\\AuthController' => $baseDir . '/app/Http/Controllers/Api/AuthController.php',
     'App\\Http\\Controllers\\Api\\BankDetailController' => $baseDir . '/app/Http/Controllers/Api/BankDetailController.php',
+    'App\\Http\\Controllers\\Api\\BroadcastMessageController' => $baseDir . '/app/Http/Controllers/Api/BroadcastMessageController.php',
     'App\\Http\\Controllers\\Api\\CategoryController' => $baseDir . '/app/Http/Controllers/Api/CategoryController.php',
     'App\\Http\\Controllers\\Api\\ManualPaymentController' => $baseDir . '/app/Http/Controllers/Api/ManualPaymentController.php',
     'App\\Http\\Controllers\\Api\\MessageController' => $baseDir . '/app/Http/Controllers/Api/MessageController.php',
@@ -26,6 +29,7 @@ return array(
     'App\\Http\\Middleware\\EnsureUserIsAdmin' => $baseDir . '/app/Http/Middleware/EnsureUserIsAdmin.php',
     'App\\Models\\AccountLog' => $baseDir . '/app/Models/AccountLog.php',
     'App\\Models\\BankDetail' => $baseDir . '/app/Models/BankDetail.php',
+    'App\\Models\\BroadcastMessage' => $baseDir . '/app/Models/BroadcastMessage.php',
     'App\\Models\\Category' => $baseDir . '/app/Models/Category.php',
     'App\\Models\\ManualPayment' => $baseDir . '/app/Models/ManualPayment.php',
     'App\\Models\\Message' => $baseDir . '/app/Models/Message.php',
@@ -162,6 +166,7 @@ return array(
     'Cron\\MinutesField' => $vendorDir . '/dragonmantank/cron-expression/src/Cron/MinutesField.php',
     'Cron\\MonthField' => $vendorDir . '/dragonmantank/cron-expression/src/Cron/MonthField.php',
     'Database\\Factories\\UserFactory' => $baseDir . '/database/factories/UserFactory.php',
+    'Database\\Seeders\\CategorySeeder' => $baseDir . '/database/seeders/CategorySeeder.php',
     'Database\\Seeders\\DatabaseSeeder' => $baseDir . '/database/seeders/DatabaseSeeder.php',
     'DateError' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateError.php',
     'DateException' => $vendorDir . '/symfony/polyfill-php83/Resources/stubs/DateException.php',

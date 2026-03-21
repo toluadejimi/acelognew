@@ -536,9 +536,12 @@ class ComposerStaticInit53b5d56b3b7e3cbac1713e68c8850f6c
     );
 
     public static $classMap = array (
+        'App\\Console\\Commands\\ImportLegacyUsers' => __DIR__ . '/../..' . '/app/Console/Commands/ImportLegacyUsers.php',
+        'App\\Console\\Commands\\RefreshProductStock' => __DIR__ . '/../..' . '/app/Console/Commands/RefreshProductStock.php',
         'App\\Http\\Controllers\\Api\\AccountLogController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AccountLogController.php',
         'App\\Http\\Controllers\\Api\\AuthController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AuthController.php',
         'App\\Http\\Controllers\\Api\\BankDetailController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/BankDetailController.php',
+        'App\\Http\\Controllers\\Api\\BroadcastMessageController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/BroadcastMessageController.php',
         'App\\Http\\Controllers\\Api\\CategoryController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/CategoryController.php',
         'App\\Http\\Controllers\\Api\\ManualPaymentController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/ManualPaymentController.php',
         'App\\Http\\Controllers\\Api\\MessageController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/MessageController.php',
@@ -556,6 +559,7 @@ class ComposerStaticInit53b5d56b3b7e3cbac1713e68c8850f6c
         'App\\Http\\Middleware\\EnsureUserIsAdmin' => __DIR__ . '/../..' . '/app/Http/Middleware/EnsureUserIsAdmin.php',
         'App\\Models\\AccountLog' => __DIR__ . '/../..' . '/app/Models/AccountLog.php',
         'App\\Models\\BankDetail' => __DIR__ . '/../..' . '/app/Models/BankDetail.php',
+        'App\\Models\\BroadcastMessage' => __DIR__ . '/../..' . '/app/Models/BroadcastMessage.php',
         'App\\Models\\Category' => __DIR__ . '/../..' . '/app/Models/Category.php',
         'App\\Models\\ManualPayment' => __DIR__ . '/../..' . '/app/Models/ManualPayment.php',
         'App\\Models\\Message' => __DIR__ . '/../..' . '/app/Models/Message.php',
@@ -692,6 +696,7 @@ class ComposerStaticInit53b5d56b3b7e3cbac1713e68c8850f6c
         'Cron\\MinutesField' => __DIR__ . '/..' . '/dragonmantank/cron-expression/src/Cron/MinutesField.php',
         'Cron\\MonthField' => __DIR__ . '/..' . '/dragonmantank/cron-expression/src/Cron/MonthField.php',
         'Database\\Factories\\UserFactory' => __DIR__ . '/../..' . '/database/factories/UserFactory.php',
+        'Database\\Seeders\\CategorySeeder' => __DIR__ . '/../..' . '/database/seeders/CategorySeeder.php',
         'Database\\Seeders\\DatabaseSeeder' => __DIR__ . '/../..' . '/database/seeders/DatabaseSeeder.php',
         'DateError' => __DIR__ . '/..' . '/symfony/polyfill-php83/Resources/stubs/DateError.php',
         'DateException' => __DIR__ . '/..' . '/symfony/polyfill-php83/Resources/stubs/DateException.php',
