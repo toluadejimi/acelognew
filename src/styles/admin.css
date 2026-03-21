@@ -29,6 +29,7 @@
   display: flex;
   min-height: 100vh;
   background: hsl(var(--admin-bg));
+  color: hsl(var(--admin-text));
   font-family: "Inter", sans-serif;
   font-size: 15.5px;
 }

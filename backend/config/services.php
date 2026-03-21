@@ -38,6 +38,8 @@ return [
     'sprintpay' => [
         'key' => env('SPRINTPAY_API_KEY', env('PALMPAYKEY')),
         'secret' => env('SPRINTPAY_SECRET', env('PALSEC')),
+        // Shared secret for POST /api/webhooks/sprintpay — must match header from SprintPay (see WebhookController).
+        'webhook_secret' => env('SPRINTPAY_WEBHOOK_SECRET'),
     ],
 
 ];

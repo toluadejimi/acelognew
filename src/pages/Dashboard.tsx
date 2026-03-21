@@ -574,8 +574,8 @@ const [payLoading, setPayLoading] = useState(false);
 
   const filteredDbCategories = dbCategories.filter(cat => {
     if (activeFilter === "all") return true;
-    const prods = getProductsForCategory(cat.id);
-    return prods.some(p => p.platform.toLowerCase().includes(activeFilter));
+    // "Popular" pills now represent categories (activeFilter is a category id).
+    return cat.id === activeFilter;
   });
 
   // Debug logging - only log when data actually changes
@@ -768,7 +768,7 @@ const [payLoading, setPayLoading] = useState(false);
             <button
               className="purchase-success-copy-btn"
               onClick={() => {
-                navigator.clipboard.writeText(`${acc.login}:${acc.password}`);
+                navigator.clipboard.writeText(`${acc.login}|${acc.password}`);
                 toast.success("Copied!");
               }}
               style={{
@@ -784,7 +784,7 @@ const [payLoading, setPayLoading] = useState(false);
             {/* Credentials */}
             <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
               <div className="purchase-success-credential-box" style={{ fontFamily: '', fontSize: 14, borderRadius: 8, padding: '12px 14px', wordBreak: 'break-all', lineHeight: 1.7 }}>
-  <strong>{acc.login.split(':').join(' ||  ')}</strong>
+  <strong>{`${acc.login}|${acc.password}`}</strong>
 </div>
             </div>
 
@@ -822,7 +822,7 @@ const [payLoading, setPayLoading] = useState(false);
       <button
   onClick={() => {
     const textContent = boughtAccounts.map((acc, i) =>
-      `Account ${i + 1}:\n${acc.login}\n` +
+      `Account ${i + 1}:\n${acc.login}|${acc.password}\n` +
       (acc.description ? `Instructions: ${acc.description}\n` : '') +
       `---\n`
     ).join('\n');
@@ -1325,21 +1325,44 @@ const [payLoading, setPayLoading] = useState(false);
                 </div>
                 <div className="filter-row" style={{ padding: 0, marginTop: 12 }}>
                   <span className="filter-label">Popular:</span>
-                  {[{ label: "Instagram", value: "instagram" }, { label: "TikTok", value: "tiktok" }, { label: "YouTube", value: "youtube" }, { label: "Twitter", value: "twitter" }].map((f) => (
-                    <button key={f.value} className={`filter-pill ${activeFilter === f.value ? "active" : ""}`} onClick={() => setActiveFilter(f.value)}>
-                      {f.label}
-                    </button>
-                  ))}
+                  {dbCategories.length
+                    ? dbCategories
+                      .slice()
+                      .sort((a, b) => getProductsForCategory(b.id).length - getProductsForCategory(a.id).length)
+                      .slice(0, 4)
+                      .map((cat) => (
+                        <button
+                          key={cat.id}
+                          className={`filter-pill ${activeFilter === cat.id ? "active" : ""}`}
+                          onClick={() => setActiveFilter(cat.id)}
+                        >
+                          {cat.name}
+                        </button>
+                      ))
+                    : null}
                 </div>
               </div>
 
               <div className="filter-row desktop-filter-row">
                 <span className="filter-label">Popular:</span>
-                {[{ label: "All", value: "all" }, { label: "Instagram", value: "instagram" }, { label: "TikTok", value: "tiktok" }, { label: "YouTube", value: "youtube" }, { label: "Twitter", value: "twitter" }, { label: "Facebook", value: "facebook" }].map((f) => (
-                  <button key={f.value} className={`filter-pill ${activeFilter === f.value ? "active" : ""}`} onClick={() => setActiveFilter(f.value)}>
-                    {f.label}
-                  </button>
-                ))}
+                <button className={`filter-pill ${activeFilter === "all" ? "active" : ""}`} onClick={() => setActiveFilter("all")}>
+                  All
+                </button>
+                {dbCategories.length
+                  ? dbCategories
+                    .slice()
+                    .sort((a, b) => getProductsForCategory(b.id).length - getProductsForCategory(a.id).length)
+                    .slice(0, 6)
+                    .map((cat) => (
+                      <button
+                        key={cat.id}
+                        className={`filter-pill ${activeFilter === cat.id ? "active" : ""}`}
+                        onClick={() => setActiveFilter(cat.id)}
+                      >
+                        {cat.name}
+                      </button>
+                    ))
+                  : null}
               </div>
 
               {dataLoading ? (
@@ -1638,7 +1661,7 @@ const [payLoading, setPayLoading] = useState(false);
 
       <button
         onClick={() => {
-  navigator.clipboard.writeText(acc.login);
+          navigator.clipboard.writeText(`${acc.login}|${acc.password}`);
   toast.success("Copied!");
 }}
         style={{
@@ -1655,7 +1678,7 @@ const [payLoading, setPayLoading] = useState(false);
       <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ marginTop: 24 }}>
                 <div style={{ fontFamily: '', fontSize: 14, background: 'white', borderRadius: 8, padding: '12px 14px', border: '1px solid hsl(220 20% 86%)', wordBreak: 'break-all', lineHeight: 1.7 }}>
-    {acc.login.split(':').join(' || ')}
+    {`${acc.login}|${acc.password}`}
   </div>
 </div>
       </div>
@@ -1712,8 +1735,7 @@ const [payLoading, setPayLoading] = useState(false);
                   }} className="btn-download" onClick={() => {
                       const textContent = viewingOrderLogs.map((acc, i) => 
                         `Account ${i + 1}:\n` +
-                        `Login: ${acc.login}\n` +
-                        `Password: ${acc.password}\n` +
+                        `${acc.login}|${acc.password}\n` +
                         (acc.description ? `Instructions: ${acc.description}\n` : '') +
                         `Platform: ${viewingOrderTitle}\n` +
                         `Order Date: ${new Date().toLocaleDateString()}\n` +

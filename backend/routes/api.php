@@ -29,7 +29,8 @@ Route::get('/products', [ProductController::class, 'index']);
 Route::get('/bank-details', [BankDetailController::class, 'index']);
 Route::get('/site-settings', [SiteSettingController::class, 'index']);
 Route::get('/orders/feed', [OrderController::class, 'feed']);
-Route::post('/webhooks/sprintpay', [WebhookController::class, 'sprintpay']);
+Route::post('/webhooks/sprintpay', [WebhookController::class, 'sprintpay'])
+    ->middleware('throttle:60,1');
 
 // Protected
 Route::middleware('auth:sanctum')->group(function () {
