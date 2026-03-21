@@ -1,9 +1,15 @@
+# If you get "Not Found" for every URL except index.php, you likely need RewriteBase
+# matching your browser path (e.g. /backend/public/). Comment RewriteBase out if the
+# domain's document root IS this folder (URL is https://domain.com/ with no subfolder).
+
 <IfModule mod_rewrite.c>
     <IfModule mod_negotiation.c>
         Options -MultiViews -Indexes
     </IfModule>
 
     RewriteEngine On
+
+    RewriteBase /backend/public/
 
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .

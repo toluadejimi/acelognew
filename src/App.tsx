@@ -13,8 +13,12 @@ import ResetPassword from "./pages/ResetPassword";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
+import { VITE_PUBLIC_PATH } from "@/lib/env";
 
 const queryClient = new QueryClient();
+
+/** Must match VITE_PUBLIC_PATH when deployed in a subfolder (e.g. /backend/public). */
+const routerBasename = VITE_PUBLIC_PATH || "/";
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -23,7 +27,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <BrowserRouter basename={routerBasename}>
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/auth" element={<AuthPage />} />

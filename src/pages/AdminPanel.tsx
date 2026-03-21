@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { api, apiFormData } from "@/lib/api";
+import { getSameOriginPrefix } from "@/lib/env";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import "../styles/admin.css";
 
-const API_BASE = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+const API_BASE = getSameOriginPrefix();
 
 type AdminTab = "overview" | "users" | "orders" | "products" | "categories" | "transactions" | "admins" | "messages" | "broadcasts" | "logs" | "settings";
 

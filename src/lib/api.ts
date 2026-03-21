@@ -1,9 +1,16 @@
 /**
  * Central API client for Laravel backend.
- * All requests use VITE_API_URL and optional Bearer token from auth.
+ * Uses VITE_API_URL (full host), or same-origin with optional VITE_PUBLIC_PATH subfolder.
  */
 
-const BASE = import.meta.env.VITE_API_URL || "";
+import { VITE_API_URL_RAW, VITE_PUBLIC_PATH } from "./env";
+
+function apiRoot(): string {
+  if (VITE_API_URL_RAW) {
+    return `${VITE_API_URL_RAW}/api`;
+  }
+  return `${VITE_PUBLIC_PATH}/api`;
+}
 
 export type ApiError = { message: string; errors?: Record<string, string[]> };
 
@@ -21,7 +28,7 @@ export async function api<T = unknown>(
   options: RequestInit & { token?: string | null } = {}
 ): Promise<T> {
   const { token = getToken(), ...init } = options;
-  const url = path.startsWith("http") ? path : `${BASE.replace(/\/$/, "")}/api${path.startsWith("/") ? path : `/${path}`}`;
+  const url = path.startsWith("http") ? path : `${apiRoot()}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
     "Accept": "application/json",
@@ -47,7 +54,7 @@ export async function apiFormData<T = unknown>(
   token?: string | null
 ): Promise<T> {
   const t = token ?? getToken();
-  const url = `${BASE.replace(/\/$/, "")}/api${path.startsWith("/") ? path : `/${path}`}`;
+  const url = `${apiRoot()}${path.startsWith("/") ? path : `/${path}`}`;
   const headers: HeadersInit = {
     Accept: "application/json",
     ...(t ? { Authorization: `Bearer ${t}` } : {}),
