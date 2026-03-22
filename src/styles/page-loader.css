@@ -1,0 +1,123 @@
+/**
+ * Global page loader (Vite SPA) — keep in sync with mini-laravel/public/css/loader.css
+ */
+#page-loader.page-loader {
+  --loader-accent: #39ff14;
+  --loader-accent-dim: rgba(57, 255, 20, 0.12);
+  --loader-bg: rgba(10, 14, 23, 0.78);
+  --loader-blur: 16px;
+
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  background: var(--loader-bg);
+  backdrop-filter: blur(var(--loader-blur));
+  -webkit-backdrop-filter: blur(var(--loader-blur));
+  transition:
+    opacity 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme="light"] #page-loader.page-loader {
+  --loader-bg: rgba(240, 242, 245, 0.88);
+  --loader-accent: #16a34a;
+  --loader-accent-dim: rgba(22, 163, 74, 0.15);
+}
+
+#page-loader.page-loader.page-loader--hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.page-loader__inner {
+  position: relative;
+  width: 64px;
+  height: 64px;
+}
+
+.page-loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 120deg,
+    transparent 0deg,
+    var(--loader-accent-dim) 90deg,
+    var(--loader-accent) 200deg,
+    transparent 360deg
+  );
+  animation: page-loader-spin 0.9s linear infinite;
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+}
+
+.page-loader__core {
+  position: absolute;
+  inset: 18px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(57, 255, 20, 0.35),
+    rgba(57, 255, 20, 0.06) 55%,
+    transparent 70%
+  );
+  animation: page-loader-pulse 1.6s ease-in-out infinite;
+}
+
+[data-theme="light"] .page-loader__core {
+  background: radial-gradient(
+    circle at 30% 30%,
+    rgba(22, 163, 74, 0.25),
+    rgba(22, 163, 74, 0.06) 55%,
+    transparent 70%
+  );
+}
+
+.page-loader__label {
+  position: absolute;
+  bottom: -36px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-family: ui-sans-serif, system-ui, "Inter", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(232, 234, 240, 0.45);
+}
+
+[data-theme="light"] .page-loader__label {
+  color: rgba(10, 14, 23, 0.45);
+}
+
+@keyframes page-loader-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes page-loader-pulse {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-loader__ring {
+    animation-duration: 1.8s;
+  }
+  .page-loader__core {
+    animation: none;
+    opacity: 0.9;
+  }
+}

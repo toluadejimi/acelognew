@@ -93,6 +93,7 @@ const AuthPage = () => {
       });
       setSession(data.user, data.token);
       showToast("✅ Welcome back! Redirecting...");
+      navigate("/dashboard", { replace: true });
     } catch (e: unknown) {
       showToast(`❌ ${(e as { message?: string }).message || "Login failed"}`);
     } finally {
@@ -121,6 +122,7 @@ const AuthPage = () => {
       });
       setSession(data.user, data.token);
       showToast("✅ Account created! Redirecting...");
+      navigate("/dashboard", { replace: true });
     } catch (e: unknown) {
       showToast(`❌ ${(e as { message?: string }).message || "Sign up failed"}`);
     } finally {

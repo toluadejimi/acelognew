@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\SiteSettingController;
 use App\Http\Controllers\Api\TransactionController;
 use App\Http\Controllers\Api\UserRoleController;
 use App\Http\Controllers\Api\VirtualAccountController;
+use App\Http\Controllers\Api\VtuController;
 use App\Http\Controllers\Api\WalletController;
 use App\Http\Controllers\Api\WebhookController;
 use Illuminate\Support\Facades\Route;
@@ -54,6 +55,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/manual-payments', [ManualPaymentController::class, 'store']);
     Route::post('/virtual-account', [VirtualAccountController::class, 'generate']);
     Route::post('/purchase', [PurchaseController::class, 'process']);
+
+    // VTU / bills — wallet debited here; SprintPay fulfils via VTpass (see docs/VTU_SPRINTPAY.md)
+    Route::post('/vtu/airtime', [VtuController::class, 'airtime']);
+    Route::get('/vtu/catalog/data-networks', [VtuController::class, 'catalogDataNetworks']);
+    Route::get('/vtu/catalog/data-variations', [VtuController::class, 'catalogDataVariations']);
+    Route::post('/vtu/data', [VtuController::class, 'data']);
+    Route::get('/vtu/cable/validate', [VtuController::class, 'validateCable']);
+    Route::post('/vtu/cable/buy', [VtuController::class, 'buyCable']);
+    Route::get('/vtu/electricity/validate', [VtuController::class, 'validateElectricity']);
+    Route::post('/vtu/electricity/buy', [VtuController::class, 'buyElectricity']);
 });
 
 // Admin only

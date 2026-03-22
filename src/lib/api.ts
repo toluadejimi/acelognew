@@ -12,7 +12,12 @@ function apiRoot(): string {
   return `${VITE_PUBLIC_PATH}/api`;
 }
 
-export type ApiError = { message: string; errors?: Record<string, string[]> };
+export type ApiError = {
+  message: string;
+  errors?: Record<string, string[]>;
+  /** HTTP status when available (for auth: only 401 should clear the session). */
+  status?: number;
+};
 
 function getToken(): string | null {
   return localStorage.getItem("auth_token");
@@ -29,11 +34,14 @@ export async function api<T = unknown>(
 ): Promise<T> {
   const { token = getToken(), ...init } = options;
   const url = path.startsWith("http") ? path : `${apiRoot()}${path.startsWith("/") ? path : `/${path}`}`;
+  const method = (init.method || "GET").toUpperCase();
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    "Accept": "application/json",
+    Accept: "application/json",
     ...(init.headers as Record<string, string>),
   };
+  if (method !== "GET" && method !== "HEAD") {
+    (headers as Record<string, string>)["Content-Type"] = "application/json";
+  }
   if (token) headers["Authorization"] = `Bearer ${token}`;
   const res = await fetch(url, { ...init, headers });
   const data = await res.json().catch(() => ({}));
@@ -41,6 +49,7 @@ export async function api<T = unknown>(
     const d = data as { message?: string; error?: string; errors?: Record<string, string[]> };
     const err: ApiError = {
       message: d.message || d.error || res.statusText || "Request failed",
+      status: res.status,
     };
     if (d.errors) err.errors = d.errors;
     throw err;
@@ -66,7 +75,10 @@ export async function apiFormData<T = unknown>(
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw { message: (data as { message?: string }).message || res.statusText } as ApiError;
+    throw {
+      message: (data as { message?: string }).message || res.statusText,
+      status: res.status,
+    } as ApiError;
   }
   return data as T;
 }

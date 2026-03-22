@@ -1,0 +1,417 @@
+/**
+ * Bliss-style dashboard — full-bleed shell, modern wallet + quick actions
+ */
+:root {
+  --bliss-green: hsl(152 55% 28%);
+  --bliss-hero-bg: linear-gradient(
+    135deg,
+    hsl(152 52% 26%) 0%,
+    hsl(168 38% 20%) 42%,
+    hsl(215 32% 16%) 100%
+  );
+  --bliss-hero-glow: radial-gradient(ellipse 80% 60% at 20% 0%, hsl(105 80% 45% / 0.22) 0%, transparent 55%);
+}
+
+[data-theme="dark"] {
+  --bliss-hero-bg: linear-gradient(
+    135deg,
+    hsl(152 42% 20%) 0%,
+    hsl(175 32% 14%) 45%,
+    hsl(220 28% 10%) 100%
+  );
+  --bliss-hero-glow: radial-gradient(ellipse 70% 50% at 25% 0%, hsl(105 90% 48% / 0.12) 0%, transparent 50%);
+}
+
+/* ── Remove browser “frame” / white margin; match app canvas ── */
+html {
+  margin: 0;
+  padding: 0;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background: hsl(var(--db-bg));
+  color: hsl(var(--db-text));
+}
+
+.dashboard-layout {
+  background: hsl(var(--db-bg));
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.dash-main {
+  background: hsl(var(--db-bg));
+}
+
+/* Topbar blends with canvas (no white strip) */
+.dash-topbar {
+  background: hsl(var(--db-bg)) !important;
+  border-bottom: 1px solid hsl(var(--db-border)) !important;
+  box-shadow: none !important;
+}
+
+/* ── Sidebar: section groups ── */
+.sidebar-nav-section {
+  margin-top: 18px;
+}
+.sidebar-nav-section:first-of-type {
+  margin-top: 8px;
+}
+.sidebar-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: hsl(var(--db-text-muted));
+  padding: 0 12px 8px;
+  opacity: 0.85;
+}
+
+.dash-nav-item .nav-badge--subtle {
+  font-size: 9px;
+  font-weight: 800;
+  padding: 2px 6px;
+  border-radius: 6px;
+  margin-left: auto;
+  background: hsl(var(--db-green) / 0.2);
+  color: hsl(var(--db-green));
+}
+
+.dash-sidebar.bliss-sidebar-compact .sidebar-balance {
+  display: none;
+}
+
+/* ── Home column ── */
+.bliss-dash-home {
+  padding: clamp(20px, 5vw, 36px) clamp(10px, 3vw, 20px) 28px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+/* Extra air above wallet card */
+.bliss-dash-home .bliss-hero-card {
+  margin-top: 4px;
+}
+
+.bliss-hero-card {
+  position: relative;
+  background: var(--bliss-hero-bg);
+  border-radius: 24px;
+  padding: 26px 22px 22px;
+  color: #fff;
+  overflow: hidden;
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  box-shadow:
+    0 4px 6px hsl(0 0% 0% / 0.08),
+    0 24px 48px hsl(0 0% 0% / 0.22),
+    inset 0 1px 0 hsl(0 0% 100% / 0.12);
+  margin-bottom: 28px;
+}
+
+.bliss-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--bliss-hero-glow);
+  pointer-events: none;
+}
+.bliss-hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, hsl(0 0% 100% / 0.04) 0%, transparent 42%);
+  pointer-events: none;
+}
+
+.bliss-hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.bliss-hero-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.bliss-hero-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.bliss-hero-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 16px;
+  background: hsl(0 0% 100% / 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 16px;
+  border: 1px solid hsl(0 0% 100% / 0.2);
+  box-shadow: 0 4px 14px hsl(0 0% 0% / 0.15);
+}
+
+.bliss-hero-name {
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: -0.02em;
+}
+
+.bliss-hero-welcome {
+  font-size: 12px;
+  opacity: 0.82;
+  margin-top: 2px;
+}
+
+.bliss-currency-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 12px;
+  background: hsl(0 0% 0% / 0.22);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+  backdrop-filter: blur(8px);
+}
+
+.bliss-currency-toggle .cc-btn {
+  border: none;
+  background: transparent;
+  color: hsl(0 0% 100% / 0.65);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 7px 13px;
+  border-radius: 9px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+
+.bliss-currency-toggle .cc-btn.active {
+  background: hsl(0 0% 100% / 0.96);
+  color: hsl(152 48% 22%);
+  box-shadow: 0 2px 8px hsl(0 0% 0% / 0.12);
+}
+
+.bliss-hero-balance {
+  text-align: center;
+  padding: 6px 0 18px;
+}
+
+.bliss-balance-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  opacity: 0.72;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.bliss-balance-num {
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: clamp(2rem, 6vw, 2.85rem);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  text-shadow: 0 2px 20px hsl(0 0% 0% / 0.2);
+}
+
+.bliss-add-money {
+  width: 100%;
+  padding: 15px 20px;
+  border-radius: 14px;
+  border: 1px solid hsl(0 0% 100% / 0.22);
+  background: hsl(0 0% 100% / 0.14);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
+  backdrop-filter: blur(6px);
+}
+
+.bliss-add-money:hover {
+  background: hsl(0 0% 100% / 0.22);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.18);
+}
+
+/* Section label */
+.bliss-section-kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: hsl(var(--db-text-muted));
+  margin: 0 4px 6px;
+  opacity: 0.9;
+}
+
+.bliss-section-title {
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: clamp(1.15rem, 3vw, 1.35rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin: 0 4px 18px;
+  color: hsl(var(--db-text));
+}
+
+/* Quick services — bento tiles */
+.bliss-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+@media (min-width: 520px) {
+  .bliss-quick-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+}
+
+@media (min-width: 900px) {
+  .bliss-quick-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+}
+
+.bliss-q-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  padding: 14px 12px 16px;
+  border-radius: 18px;
+  border: 1px solid hsl(var(--db-border));
+  background: hsl(var(--db-card));
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.34, 1.2, 0.64, 1), box-shadow 0.22s, border-color 0.2s;
+  font: inherit;
+  color: inherit;
+  width: 100%;
+  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.06) inset;
+}
+
+[data-theme="dark"] .bliss-q-card {
+  background: hsl(220 24% 13%);
+  box-shadow: 0 1px 0 hsl(0 0% 100% / 0.04) inset;
+}
+
+.bliss-q-card:hover {
+  transform: translateY(-4px) scale(1.01);
+  box-shadow:
+    0 12px 32px hsl(0 0% 0% / 0.12),
+    0 0 0 1px hsl(var(--db-green) / 0.25);
+  border-color: hsl(var(--db-green) / 0.45);
+}
+
+[data-theme="dark"] .bliss-q-card:hover {
+  box-shadow:
+    0 16px 40px hsl(0 0% 0% / 0.35),
+    0 0 0 1px hsl(var(--db-green) / 0.3);
+}
+
+.bliss-q-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 17px;
+  margin-bottom: 10px;
+  color: #fff;
+  box-shadow: 0 4px 12px hsl(0 0% 0% / 0.2);
+}
+
+.bliss-q-card h4 {
+  font-size: 13px;
+  font-weight: 800;
+  margin: 0 0 3px;
+  letter-spacing: -0.02em;
+  color: hsl(var(--db-text));
+}
+
+.bliss-q-card p {
+  font-size: 11px;
+  color: hsl(var(--db-text-muted));
+  margin: 0;
+  line-height: 1.35;
+}
+
+/* Icon tints */
+.bliss-t-teal { background: linear-gradient(145deg, #0d9488, #0f766e); }
+.bliss-t-green { background: linear-gradient(145deg, hsl(152 45% 32%), hsl(160 40% 26%)); }
+.bliss-t-purple { background: linear-gradient(145deg, #7c3aed, #6d28d9); }
+.bliss-t-blue { background: linear-gradient(145deg, #2563eb, #1d4ed8); }
+.bliss-t-indigo { background: linear-gradient(145deg, #4f46e5, #4338ca); }
+.bliss-t-pink { background: linear-gradient(145deg, #db2777, #be185d); }
+.bliss-t-orange { background: linear-gradient(145deg, #ea580c, #c2410c); }
+.bliss-t-yellow { background: linear-gradient(145deg, #ca8a04, #a16207); }
+.bliss-t-cyan { background: linear-gradient(145deg, #0891b2, #0e7490); }
+.bliss-t-slate { background: linear-gradient(145deg, #475569, #334155); }
+
+.bliss-catalog-block {
+  margin-top: 8px;
+}
+
+.bliss-catalog-block .welcome-slider-section {
+  margin-bottom: 16px;
+}
+
+/* Service placeholder panels */
+.service-panel-page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 8px 20px 32px;
+}
+.service-panel-hero {
+  text-align: center;
+  padding: 24px 0;
+}
+.service-panel-hero-icon {
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+}
+.service-panel-hero-icon:not(.bliss-q-icon) {
+  background: hsl(var(--db-blue-dim));
+  color: hsl(var(--db-blue));
+}
+.service-panel-hero-icon.bliss-q-icon {
+  color: #fff;
+}
+.service-panel-hero h2 {
+  font-size: 1.5rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  margin-bottom: 8px;
+  color: hsl(var(--db-text));
+}
+.service-panel-hero p {
+  font-size: 14px;
+  color: hsl(var(--db-text-muted));
+  line-height: 1.55;
+}
+.service-panel-placeholder {
+  padding: 32px 24px;
+  border-radius: 16px;
+  border: 2px dashed hsl(var(--db-border));
+  text-align: center;
+  color: hsl(var(--db-text-muted));
+  font-size: 14px;
+  background: hsl(var(--db-bg));
+}

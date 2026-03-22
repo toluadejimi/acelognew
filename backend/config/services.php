@@ -40,6 +40,35 @@ return [
         'secret' => env('SPRINTPAY_SECRET', env('PALSEC')),
         // Shared secret for POST /api/webhooks/sprintpay — must match header from SprintPay (see WebhookController).
         'webhook_secret' => env('SPRINTPAY_WEBHOOK_SECRET'),
+        // VTU / bills (SprintPay → VTpass). Server-side only; never expose in the browser.
+        'base_url' => rtrim(env('SPRINTPAY_API_BASE', 'https://web.sprintpay.online/api'), '/'),
+        'token' => env('SPRINTPAY_API_TOKEN', env('SPRINTPAY_API_KEY')),
+        'vtu_enabled' => env('SPRINTPAY_VTU_ENABLED', false),
+        'vtu_mock' => env('SPRINTPAY_VTU_MOCK', false),
+        'vtu_timeout' => (int) env('SPRINTPAY_VTU_TIMEOUT', 90),
+        /*
+         * Relative paths appended to base_url. Override to match SprintPay Readme for your account.
+         */
+        'vtu_paths' => [
+            'airtime' => env('SPRINTPAY_VTU_PATH_AIRTIME', 'bill/airtime'),
+            'data' => env('SPRINTPAY_VTU_PATH_DATA', 'bill/data'),
+            'cable_validate' => env('SPRINTPAY_VTU_PATH_CABLE_VALIDATE', 'bill/cable/validate'),
+            'cable_buy' => env('SPRINTPAY_VTU_PATH_CABLE_BUY', 'bill/cable/pay'),
+            'electricity_validate' => env('SPRINTPAY_VTU_PATH_ELECTRICITY_VALIDATE', 'bill/electricity/validate'),
+            'electricity_buy' => env('SPRINTPAY_VTU_PATH_ELECTRICITY_BUY', 'bill/electricity/pay'),
+        ],
+        'vtu_payload_extra' => [
+            'airtime' => [],
+            'data' => [],
+            'cable' => [],
+            'electricity' => [],
+        ],
+        /** Public-style catalog (no wallet debit). Proxies SprintPay GET /get-data, /get-data-variations, etc. */
+        'vtu_catalog_enabled' => env('SPRINTPAY_VTU_CATALOG_ENABLED', true),
+        'vtu_catalog_paths' => [
+            'data_networks' => env('SPRINTPAY_CATALOG_PATH_GET_DATA', 'get-data'),
+            'data_variations' => env('SPRINTPAY_CATALOG_PATH_GET_DATA_VARIATIONS', 'get-data-variations'),
+        ],
     ],
 
 ];

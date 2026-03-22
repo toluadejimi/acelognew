@@ -10,8 +10,25 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const [blocked, setBlocked] = useState(false);
 
   useEffect(() => {
+    if (authLoading) return;
+
     let cancelled = false;
     (async () => {
+      // Fresh login: context already has user + token — do not call getSession() here.
+      // getSession() clears the session if /api/user fails (static hosting / wrong base URL),
+      // which left the app stuck after "Welcome back! Redirecting...".
+      if (user) {
+        setAuthenticated(true);
+        try {
+          const profile = await api<{ is_blocked?: boolean }>("/profile");
+          if (!cancelled && profile?.is_blocked) setBlocked(true);
+        } catch {
+          // ignore
+        }
+        if (!cancelled) setLoading(false);
+        return;
+      }
+
       const session = await getSession();
       if (cancelled) return;
       if (!session?.user) {
@@ -31,7 +48,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [getSession]);
+  }, [authLoading, user, getSession]);
 
   if (authLoading || loading) return null;
   if (blocked) return (

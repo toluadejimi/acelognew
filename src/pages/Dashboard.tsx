@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { useAdminCheck } from "@/hooks/useAdminCheck";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -7,9 +7,21 @@ import { api, apiFormData } from "@/lib/api";
 import { getSameOriginPrefix } from "@/lib/env";
 import { ProductSkeleton, CategorySkeleton, ProductGridSkeleton, ProductListSkeleton, CategoryGridSkeleton } from "@/components/Skeleton";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { VtuServicePage } from "@/components/VtuServicePage";
 import "../styles/dashboard.css";
 
-type PanelName = "home" | "orders" | "profile" | "add-funds" | "support" | "categories" | "transactions";
+type PanelName =
+  | "home"
+  | "orders"
+  | "profile"
+  | "add-funds"
+  | "support"
+  | "categories"
+  | "transactions"
+  | "airtime"
+  | "data"
+  | "cable-tv"
+  | "electricity";
 
 interface ModalData {
   title: string;
@@ -96,6 +108,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: "My Orders", icon: "fa-solid fa-box", panel: "orders" },
   { label: "Transactions", icon: "fa-solid fa-receipt", panel: "transactions" },
   { label: "Add Funds", icon: "fa-solid fa-credit-card", panel: "add-funds" },
+  { label: "Bills & VTU", type: "section" },
+  { label: "Airtime", icon: "fa-solid fa-mobile-screen", panel: "airtime" },
+  { label: "Data", icon: "fa-solid fa-wifi", panel: "data" },
+  { label: "Cable TV", icon: "fa-solid fa-tv", panel: "cable-tv" },
+  { label: "Electricity", icon: "fa-solid fa-bolt", panel: "electricity" },
   { label: "Rules", icon: "fa-solid fa-file-lines", panel: undefined as unknown as PanelName },
   { label: "Support", icon: "fa-solid fa-headset", panel: "support" },
 ];
@@ -108,6 +125,10 @@ const PANEL_TITLES: Record<PanelName, string> = {
   transactions: "Transactions",
   "add-funds": "Add Funds",
   support: "Support Center",
+  airtime: "Airtime (VTU)",
+  data: "Data bundles",
+  "cable-tv": "Cable TV",
+  electricity: "Electricity",
 };
 
 const SLIDER_SLIDES = [
@@ -132,11 +153,13 @@ export default function Dashboard() {
   const [modal, setModal] = useState<ModalData | null>(null);
   const [loading, setLoading] = useState(false);
   const [dataLoading, setDataLoading] = useState(true);
+  /** Shown until /wallet returns (initial load, refresh, add-funds panel). */
+  const [walletLoading, setWalletLoading] = useState(true);
   const [renderKey, setRenderKey] = useState(0);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [purchaseQuantity, setPurchaseQuantity] = useState(1);
   const [boughtAccounts, setBoughtAccounts] = useState<{ login: string, password: string, description?: string }[] | null>(null);
- const [selectedPreset, setSelectedPreset] = useState("NGN 5,000");
+  const [selectedPreset, setSelectedPreset] = useState("₦5,000");
 const [selectedPayment, setSelectedPayment] = useState(0);
 const [customAmount, setCustomAmount] = useState("");
 const [fundSuccess, setFundSuccess] = useState(false);
@@ -182,6 +205,16 @@ const [payLoading, setPayLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [recentFeed, setRecentFeed] = useState<any[]>([]);
   const { isAdmin } = useAdminCheck();
+
+  /** Parsed top-up amount from custom input or preset chip (₦). */
+  const fundAmountNaira = useMemo(() => {
+    const raw = customAmount.trim();
+    if (raw !== "") {
+      const n = Number(raw);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
+    }
+    return selectedPreset ? Number(selectedPreset.replace(/[^\d]/g, "")) || 0 : 0;
+  }, [customAmount, selectedPreset]);
 
   // Slider on home (announcements / support banners)
   const [slideIndex, setSlideIndex] = useState(0);
@@ -231,11 +264,14 @@ const [payLoading, setPayLoading] = useState(false);
 
   const refreshWalletBalance = useCallback(async () => {
     if (!userId) return;
+    setWalletLoading(true);
     try {
       const walletRes = await api<{ balance: number }>("/wallet");
       setBalance(Number(walletRes.balance));
     } catch {
       // ignore
+    } finally {
+      setWalletLoading(false);
     }
   }, [userId]);
 
@@ -346,8 +382,12 @@ const [payLoading, setPayLoading] = useState(false);
   };
 
   const loadUserData = useCallback(async () => {
-    if (!userId) return;
+    if (!userId) {
+      setWalletLoading(false);
+      return;
+    }
     setDataLoading(true);
+    setWalletLoading(true);
     try {
       const [profile, walletRes, userOrders, userTxns, cats, prods, msgs, bds, ss] = await Promise.all([
         api<{ username?: string }>("/profile"),
@@ -376,6 +416,7 @@ const [payLoading, setPayLoading] = useState(false);
       console.error("Error loading user data:", error);
     } finally {
       setDataLoading(false);
+      setWalletLoading(false);
       setRenderKey(prev => prev + 1);
     }
   }, [userId]);
@@ -420,9 +461,8 @@ const [payLoading, setPayLoading] = useState(false);
   // When user opens Add Funds and selects Virtual Account, load their existing account if any (one per user)
   useEffect(() => {
     if (activePanel !== "add-funds" || selectedPayment !== 1 || !userId) return;
-    const amount = customAmount ? Number(customAmount) : selectedPreset ? Number(selectedPreset.replace(/[^\d]/g, "")) : 0;
-    loadExistingVirtualAccount(amount || 0);
-  }, [activePanel, selectedPayment, userId, loadExistingVirtualAccount]);
+    loadExistingVirtualAccount(fundAmountNaira || 0);
+  }, [activePanel, selectedPayment, userId, loadExistingVirtualAccount, fundAmountNaira]);
 
   // Poll messages when on support panel
   const markMessagesRead = useCallback(async () => {
@@ -673,9 +713,14 @@ const [payLoading, setPayLoading] = useState(false);
             </div>
             <div className="modal-detail-row">
               <span className="mdr-label">Your Balance</span>
-              <span className={`mdr-val ${modal.priceNum && balance < modal.priceNum ? "modal-balance-low" : "modal-balance-ok"}`}>{formattedBalance}</span>
+              <span
+                className={`mdr-val modal-balance-row ${modal.priceNum && balance < modal.priceNum ? "modal-balance-low" : "modal-balance-ok"}`}
+                aria-busy={walletLoading}
+              >
+                {walletLoading ? <span className="balance-shimmer" aria-hidden /> : formattedBalance}
+              </span>
             </div>
-            {modal.priceNum && balance < modal.priceNum && (
+            {modal.priceNum && !walletLoading && balance < modal.priceNum && (
               <div className="modal-insufficient-msg">
                 ⚠️ Insufficient balance. Please add funds first.
               </div>
@@ -693,9 +738,10 @@ const [payLoading, setPayLoading] = useState(false);
               <span className="mt-val">₦{((modal.priceNum || 0) * purchaseQuantity).toLocaleString("en-NG", { minimumFractionDigits: 2 })}</span>
             </div>
             <button
-              className={`btn-confirm${loading ? " loading" : ""}`}
-              disabled={loading}
+              className={`btn-confirm${loading || walletLoading ? " loading" : ""}`}
+              disabled={loading || walletLoading}
               onClick={async () => {
+                if (walletLoading) return;
                 if (!modal.product_id) {
                   toast.error("This product is not available for purchase yet.");
                   return;
@@ -856,11 +902,11 @@ const [payLoading, setPayLoading] = useState(false);
       {/* Virtual Account: Full name & phone popup */}
       {vaModalOpen && (
         <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setVaModalOpen(false); }}>
-          <div className="modal" style={{ maxWidth: 420 }}>
-            <button className="modal-close" onClick={() => setVaModalOpen(false)}>✕</button>
-            <div className="modal-tag">Virtual Account</div>
-            <h2 className="modal-title-text" style={{ fontSize: 18, marginBottom: 8 }}>Enter your details</h2>
-            <p className="modal-desc-text" style={{ marginBottom: 20 }}>Full name and phone number are required to generate your account.</p>
+          <div className="modal fund-va-modal">
+            <button type="button" className="modal-close" onClick={() => setVaModalOpen(false)} aria-label="Close">✕</button>
+            <div className="fund-va-modal__badge"><i className="fa-solid fa-building-columns" aria-hidden /> Virtual account</div>
+            <h2 className="fund-va-modal__title">Almost there</h2>
+            <p className="fund-va-modal__desc">We need your legal name and phone number to generate your dedicated bank account.</p>
             <div className="form-group" style={{ marginBottom: 16 }}>
               <label className="form-label">Full name</label>
               <input
@@ -882,9 +928,9 @@ const [payLoading, setPayLoading] = useState(false);
               />
             </div>
             <button
-              className="btn-submit-funds"
+              type="button"
+              className="fund-va-modal__submit"
               disabled={vaLoading}
-              style={{ width: "100%" }}
               onClick={async () => {
                 const name = vaFullName.trim();
                 const phoneDigits = vaPhone.replace(/\D/g, "");
@@ -896,7 +942,7 @@ const [payLoading, setPayLoading] = useState(false);
                   toast.error("Please enter a valid phone number (10–15 digits)");
                   return;
                 }
-                const amount = customAmount ? Number(customAmount) : selectedPreset ? Number(selectedPreset.replace(/[^\d]/g, "")) : 0;
+                const amount = fundAmountNaira;
                 if (!amount || amount < 100) {
                   toast.error("Minimum amount is ₦100");
                   return;
@@ -1010,7 +1056,9 @@ const [payLoading, setPayLoading] = useState(false);
         <div className="sidebar-balance">
           <div>
             <div className="balance-label">Wallet Balance</div>
-            <div className="balance-val">{balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}</div>
+            <div className="balance-val" aria-busy={walletLoading}>
+              {walletLoading ? <span className="balance-shimmer" aria-hidden /> : balance.toLocaleString("en-NG", { minimumFractionDigits: 2 })}
+            </div>
             <div className="balance-currency">NGN</div>
           </div>
           <button className="add-funds-mini" onClick={() => switchPanel("add-funds")}>+</button>
@@ -1138,7 +1186,9 @@ const [payLoading, setPayLoading] = useState(false);
             </div>
             <div className={`dash-user-pill${activePanel === "add-funds" ? " active" : ""}`} onClick={() => switchPanel("add-funds")}>
               <span className="bal-icon"><i className="fa-solid fa-wallet" /></span>
-              <span className="bal-text">{shortBalance}</span>
+              <span className="bal-text" aria-busy={walletLoading}>
+                {walletLoading ? <span className="balance-shimmer dash-pill-shimmer" aria-hidden /> : shortBalance}
+              </span>
             </div>
             <div className="topbar-avatar" onClick={() => switchPanel("profile")}>{initials}</div>
           </div>
@@ -1284,6 +1334,30 @@ const [payLoading, setPayLoading] = useState(false);
             </div>
           )}
 
+          {/* VTU / Bills (backend → SprintPay → VTpass) */}
+          {(activePanel === "airtime" ||
+            activePanel === "data" ||
+            activePanel === "cable-tv" ||
+            activePanel === "electricity") && (
+            <div className="dash-panel dash-panel--vtu">
+              <VtuServicePage
+                kind={
+                  activePanel === "airtime"
+                    ? "airtime"
+                    : activePanel === "data"
+                      ? "data"
+                      : activePanel === "cable-tv"
+                        ? "cable-tv"
+                        : "electricity"
+                }
+                onBalanceUpdate={(b) => {
+                  setBalance(b);
+                  setWalletLoading(false);
+                }}
+              />
+            </div>
+          )}
+
           {/* HOME */}
           {activePanel === "home" && !selectedCategory && (
             <div className="dash-panel">
@@ -1307,7 +1381,9 @@ const [payLoading, setPayLoading] = useState(false);
                   </div>
                   <div className="welcome-right">
                     <div className="wstat" style={{ cursor: "pointer" }} onClick={() => switchPanel("add-funds")} title="Add funds">
-                      <div className="wstat-num">₦{balance.toLocaleString("en-NG", { maximumFractionDigits: 0 })}</div>
+                      <div className="wstat-num" aria-busy={walletLoading}>
+                        {walletLoading ? <span className="balance-shimmer" aria-hidden /> : `₦${balance.toLocaleString("en-NG", { maximumFractionDigits: 0 })}`}
+                      </div>
                       <div className="wstat-label">Wallet balance</div>
                     </div>
                     <div className="wstat" style={{ cursor: "pointer" }} onClick={() => switchPanel("orders")} title="View orders">
@@ -1315,6 +1391,37 @@ const [payLoading, setPayLoading] = useState(false);
                       <div className="wstat-label">Total orders</div>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div className="home-vtu-strip" aria-label="Bills and VTU services">
+                <div className="home-vtu-strip-head">
+                  <span className="home-vtu-strip-title">
+                    <i className="fa-solid fa-bolt" aria-hidden /> Bills &amp; VTU
+                  </span>
+                  <span className="home-vtu-strip-sub">Buy airtime, data, cable &amp; electricity — charged from your wallet (SprintPay → VTpass).</span>
+                </div>
+                <div className="home-vtu-strip-grid">
+                  <button type="button" className="home-vtu-tile" onClick={() => switchPanel("airtime")}>
+                    <i className="fa-solid fa-mobile-screen" aria-hidden />
+                    <span className="lbl">Airtime</span>
+                    <span className="hint">GSM top-up</span>
+                  </button>
+                  <button type="button" className="home-vtu-tile" onClick={() => switchPanel("data")}>
+                    <i className="fa-solid fa-wifi" aria-hidden />
+                    <span className="lbl">Data</span>
+                    <span className="hint">Mobile bundles</span>
+                  </button>
+                  <button type="button" className="home-vtu-tile" onClick={() => switchPanel("cable-tv")}>
+                    <i className="fa-solid fa-tv" aria-hidden />
+                    <span className="lbl">Cable TV</span>
+                    <span className="hint">DStv · GOtv · StarTimes</span>
+                  </button>
+                  <button type="button" className="home-vtu-tile" onClick={() => switchPanel("electricity")}>
+                    <i className="fa-solid fa-plug-circle-bolt" aria-hidden />
+                    <span className="lbl">Electricity</span>
+                    <span className="hint">Prepaid &amp; postpaid</span>
+                  </button>
                 </div>
               </div>
 
@@ -1775,7 +1882,9 @@ const [payLoading, setPayLoading] = useState(false);
                   <p className="profile-hero-email">{email}</p>
                   <div className="profile-hero-balance" onClick={() => switchPanel("add-funds")}>
                     <span className="profile-hero-balance-label">Wallet</span>
-                    <span className="profile-hero-balance-val">{formattedBalance}</span>
+                    <span className="profile-hero-balance-val" aria-busy={walletLoading}>
+                      {walletLoading ? <span className="balance-shimmer balance-shimmer--profile" aria-hidden /> : formattedBalance}
+                    </span>
                   </div>
                 </div>
 
@@ -1813,211 +1922,271 @@ const [payLoading, setPayLoading] = useState(false);
             </div>
           )}
 
-          {/* ADD FUNDS */}
-          {/* ADD FUNDS */}
-{activePanel === "add-funds" && (
-  <div className="dash-panel">
-    <div className="funds-panel">
-
-      {/* SUCCESS STATE */}
-      {fundSuccess ? (
-        <div className="funds-success-card">
-          <div className="funds-success-icon">✓</div>
-          <h2 className="funds-success-title">Funds added successfully</h2>
-          <p className="funds-success-amount">
-            <strong>₦{fundAmount.toLocaleString()}</strong> has been credited to your wallet. New balance below.
-          </p>
-          <div className="funds-success-balance-card">
-            <div className="funds-success-balance-label">Wallet balance</div>
-            <div className="funds-success-balance-value">{formattedBalance}</div>
-          </div>
-          <div className="funds-success-actions">
-            <button type="button" className="funds-success-btn-secondary" onClick={() => { setFundSuccess(false); setCustomAmount(""); }}>
-              + Add more funds
-            </button>
-            <button type="button" className="funds-success-btn-primary" onClick={() => switchPanel("home")}>
-              Browse products →
-            </button>
-          </div>
-        </div>
-
-      ) : (
-        <>
-          {/* Hero: current balance */}
-          <div className="funds-hero">
-            <div className="funds-hero-label">Available balance</div>
-            <div className="funds-hero-amount">{formattedBalance}</div>
-          </div>
-
-          {/* Amount */}
-          <div className="funds-section">
-            <div className="funds-section-title">How much do you want to add?</div>
-            <div className="funds-presets">
-              {["₦1,000", "₦5,000", "₦10,000", "₦20,000", "₦50,000", "₦100,000"].map((amt) => (
-                <button
-                  key={amt}
-                  type="button"
-                  className={`funds-preset ${selectedPreset === amt && !customAmount ? "selected" : ""}`}
-                  onClick={() => { setSelectedPreset(amt); setCustomAmount(""); }}
-                >
-                  {amt}
-                </button>
-              ))}
-            </div>
-            <div className="funds-custom-wrap">
-              <span className="funds-custom-prefix">₦</span>
-              <input
-                type="number"
-                className="funds-custom-input"
-                placeholder="Custom amount"
-                value={customAmount}
-                onChange={(e) => {
-                  setCustomAmount(e.target.value);
-                  if (e.target.value) setSelectedPreset("");
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Payment method */}
-          <div className="funds-section">
-            <div className="funds-section-title">Payment method</div>
-            <div className="funds-method-grid">
-              <button
-                type="button"
-                className={`funds-method-card ${selectedPayment === 0 ? "selected" : ""}`}
-                onClick={() => setSelectedPayment(0)}
-              >
-                <div className="funds-method-icon">⚡</div>
-                <span className="funds-method-name">SprintPay</span>
-                <span className="funds-method-desc">Redirect to payment · Fast & secure</span>
-              </button>
-              <button
-                type="button"
-                className={`funds-method-card ${selectedPayment === 1 ? "selected" : ""}`}
-                onClick={() => setSelectedPayment(1)}
-              >
-                <div className="funds-method-icon">📱</div>
-                <span className="funds-method-name">Virtual account</span>
-                <span className="funds-method-desc">Your unique account · Copy & pay</span>
-              </button>
-            </div>
-          </div>
-
-          {selectedPayment === 0 && (
-            <div className="funds-info-box">
-              <strong>⚡ SprintPay checkout</strong><br />
-              You’ll be redirected to SprintPay’s secure page. After payment, you’re sent back here and your wallet is credited automatically.
-            </div>
-          )}
-
-          {selectedPayment === 1 && (
-            <>
-              <div className="funds-info-box">
-                <strong>📱 Your unique virtual account</strong><br />
-                Generate a dedicated account number. Transfer the amount and your wallet is credited automatically.
-              </div>
-              {virtualAccount && (
-                <div className="funds-va-card">
-                  <div className="funds-va-title">Pay to this account</div>
-                  <div className="funds-va-row">
-                    <div className="funds-va-label">Bank name</div>
-                    <div className="funds-va-value">{virtualAccount.bank_name}</div>
+          {/* ADD FUNDS — redesigned */}
+          {activePanel === "add-funds" && (
+            <div className="dash-panel fund-page-wrap">
+              <div className="fund-page">
+                {fundSuccess ? (
+                  <div className="fund-success">
+                    <div className="fund-success__glow" aria-hidden />
+                    <div className="fund-success__icon">
+                      <i className="fa-solid fa-check" aria-hidden />
+                    </div>
+                    <h2 className="fund-success__title">Payment received</h2>
+                    <p className="fund-success__text">
+                      <span className="fund-success__amount">₦{fundAmount.toLocaleString("en-NG")}</span>
+                      {" "}was added to your wallet. Your updated balance:
+                    </p>
+                    <div className="fund-success__balance" aria-busy={walletLoading}>
+                      {walletLoading ? <span className="balance-shimmer" aria-hidden /> : formattedBalance}
+                    </div>
+                    <div className="fund-success__actions">
+                      <button
+                        type="button"
+                        className="fund-success__btn fund-success__btn--ghost"
+                        onClick={() => { setFundSuccess(false); setCustomAmount(""); }}
+                      >
+                        <i className="fa-solid fa-plus" aria-hidden /> Add more
+                      </button>
+                      <button type="button" className="fund-success__btn fund-success__btn--primary" onClick={() => switchPanel("home")}>
+                        Continue shopping <i className="fa-solid fa-arrow-right" aria-hidden />
+                      </button>
+                    </div>
                   </div>
-                  <div className="funds-va-row">
-                    <div className="funds-va-label">Account name</div>
-                    <div className="funds-va-value">{virtualAccount.account_name}</div>
-                  </div>
-                  <div className="funds-va-copy-row">
-                    <span className="funds-va-account-no">{virtualAccount.account_no}</span>
+                ) : (
+                  <>
+                    <header className="fund-header">
+                      <div className="fund-header__text">
+                        <p className="fund-header__eyebrow">Wallet</p>
+                        <h1 className="fund-header__title">Add funds</h1>
+                        <p className="fund-header__sub">Top up securely. Credits apply automatically once your payment clears.</p>
+                      </div>
+                    </header>
+
+                    <div className="fund-balance-card">
+                      <div className="fund-balance-card__icon" aria-hidden>
+                        <i className="fa-solid fa-wallet" />
+                      </div>
+                      <div className="fund-balance-card__body">
+                        <span className="fund-balance-card__label">Available balance</span>
+                        <div className="fund-balance-card__value" aria-busy={walletLoading}>
+                          {walletLoading ? <span className="balance-shimmer balance-shimmer--fund-hero" aria-hidden /> : formattedBalance}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="fund-layout">
+                      <section className="fund-card" aria-labelledby="fund-amount-heading">
+                        <div className="fund-card__head">
+                          <span className="fund-step">1</span>
+                          <h2 id="fund-amount-heading" className="fund-card__title">Choose amount</h2>
+                        </div>
+                        <p className="fund-card__hint">Quick amounts or enter your own (min ₦100).</p>
+                        <div className="fund-chips" role="group" aria-label="Preset amounts">
+                          {["₦1,000", "₦5,000", "₦10,000", "₦20,000", "₦50,000", "₦100,000"].map((amt) => (
+                            <button
+                              key={amt}
+                              type="button"
+                              className={`fund-chip ${selectedPreset === amt && !customAmount.trim() ? "is-selected" : ""}`}
+                              onClick={() => { setSelectedPreset(amt); setCustomAmount(""); }}
+                            >
+                              {amt}
+                            </button>
+                          ))}
+                        </div>
+                        <label className="fund-custom-label" htmlFor="fund-custom-amount">Custom amount</label>
+                        <div className="fund-custom">
+                          <span className="fund-custom__prefix" aria-hidden>₦</span>
+                          <input
+                            id="fund-custom-amount"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            className="fund-custom__input"
+                            placeholder="e.g. 15000"
+                            value={customAmount}
+                            onChange={(e) => {
+                              setCustomAmount(e.target.value);
+                              if (e.target.value.trim()) setSelectedPreset("");
+                            }}
+                          />
+                        </div>
+                      </section>
+
+                      <section className="fund-card" aria-labelledby="fund-method-heading">
+                        <div className="fund-card__head">
+                          <span className="fund-step">2</span>
+                          <h2 id="fund-method-heading" className="fund-card__title">Pay with</h2>
+                        </div>
+                        <div className="fund-methods">
+                          <button
+                            type="button"
+                            className={`fund-method ${selectedPayment === 0 ? "is-selected" : ""}`}
+                            onClick={() => setSelectedPayment(0)}
+                          >
+                            <span className="fund-method__check" aria-hidden><i className="fa-solid fa-circle-check" /></span>
+                            <span className="fund-method__icon fund-method__icon--bolt"><i className="fa-solid fa-bolt" /></span>
+                            <span className="fund-method__name">SprintPay</span>
+                            <span className="fund-method__desc">Secure redirect · cards &amp; more</span>
+                          </button>
+                          <button
+                            type="button"
+                            className={`fund-method ${selectedPayment === 1 ? "is-selected" : ""}`}
+                            onClick={() => setSelectedPayment(1)}
+                          >
+                            <span className="fund-method__check" aria-hidden><i className="fa-solid fa-circle-check" /></span>
+                            <span className="fund-method__icon fund-method__icon--bank"><i className="fa-solid fa-building-columns" /></span>
+                            <span className="fund-method__name">Virtual account</span>
+                            <span className="fund-method__desc">Bank transfer · copy account details</span>
+                          </button>
+                        </div>
+                      </section>
+                    </div>
+
+                    {selectedPayment === 0 && (
+                      <div className="fund-callout fund-callout--info">
+                        <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden />
+                        <div>
+                          <strong>SprintPay</strong>
+                          <p>You’ll leave this page to complete payment, then return here. Wallet updates when SprintPay confirms.</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedPayment === 1 && (
+                      <>
+                        <div className="fund-callout fund-callout--muted">
+                          <i className="fa-solid fa-shield-halved" aria-hidden />
+                          <div>
+                            <strong>Virtual account</strong>
+                            <p>Use the account number below. Transfers typically reflect within minutes once your bank sends them.</p>
+                          </div>
+                        </div>
+                        {virtualAccount && (
+                          <div className="fund-va">
+                            <div className="fund-va__header">
+                              <span className="fund-va__tag">Transfer to</span>
+                              <h3 className="fund-va__title">Your dedicated account</h3>
+                            </div>
+                            <dl className="fund-va__grid">
+                              <div className="fund-va__cell">
+                                <dt>Bank</dt>
+                                <dd>{virtualAccount.bank_name}</dd>
+                              </div>
+                              <div className="fund-va__cell">
+                                <dt>Account name</dt>
+                                <dd>{virtualAccount.account_name}</dd>
+                              </div>
+                            </dl>
+                            <div className="fund-va__acct">
+                              <span className="fund-va__acct-label">Account number</span>
+                              <div className="fund-va__acct-row">
+                                <code className="fund-va__number">{virtualAccount.account_no}</code>
+                                <button
+                                  type="button"
+                                  className="fund-va__copy"
+                                  onClick={() => {
+                                    void navigator.clipboard.writeText(virtualAccount.account_no);
+                                    toast.success("Copied to clipboard");
+                                  }}
+                                >
+                                  <i className="fa-solid fa-copy" /> Copy
+                                </button>
+                              </div>
+                            </div>
+                            <p className="fund-va__foot">This virtual account stays yours — reuse it anytime you add funds.</p>
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    <div className="fund-summary">
+                      <div className="fund-summary__item">
+                        <span className="fund-summary__k">Adding</span>
+                        <span className="fund-summary__v">
+                          {fundAmountNaira >= 100 ? `₦${fundAmountNaira.toLocaleString("en-NG")}` : "—"}
+                        </span>
+                      </div>
+                      <div className="fund-summary__divider" aria-hidden />
+                      <div className="fund-summary__item">
+                        <span className="fund-summary__k">Method</span>
+                        <span className="fund-summary__v">{selectedPayment === 0 ? "SprintPay" : "Virtual account"}</span>
+                      </div>
+                    </div>
+
                     <button
                       type="button"
-                      className="funds-va-copy-btn"
-                      onClick={() => {
-                        navigator.clipboard.writeText(virtualAccount.account_no);
-                        toast.success("Account number copied");
+                      className="fund-cta"
+                      disabled={payLoading || vaLoading}
+                      onClick={async () => {
+                        const amount = fundAmountNaira;
+                        if (!amount || amount < 100) {
+                          toast.error("Minimum amount is ₦100");
+                          return;
+                        }
+                        if (selectedPayment === 1) {
+                          if (!virtualAccount) {
+                            setVaModalOpen(true);
+                            return;
+                          }
+                          setVaLoading(true);
+                          try {
+                            const json = await api<{ account_no?: string; account_name?: string; bank_name?: string; amount?: number }>("/virtual-account", {
+                              method: "POST",
+                              body: JSON.stringify({ amount }),
+                            });
+                            if (json.account_no) {
+                              setVirtualAccount({
+                                account_no: json.account_no,
+                                account_name: json.account_name ?? "",
+                                bank_name: json.bank_name ?? "SprintPay",
+                                amount: json.amount ?? amount,
+                              });
+                              toast.success("Account updated for this amount.");
+                            }
+                          } catch (e) {
+                            const msg = (e as { message?: string })?.message || "Something went wrong. Try again.";
+                            toast.error(msg);
+                          } finally {
+                            setVaLoading(false);
+                          }
+                          return;
+                        }
+                        const SPRINT_API_KEY = (import.meta.env.VITE_SPRINTPAY_API_KEY || "").trim();
+                        if (!SPRINT_API_KEY) {
+                          toast.error("SprintPay key not set. Add VITE_SPRINTPAY_API_KEY to your .env.");
+                          return;
+                        }
+                        setPayLoading(true);
+                        const ref = `sp-${userId!.slice(0, 8)}-${Date.now()}`;
+                        const payUrl = `https://web.sprintpay.online/pay?amount=${amount}&key=${SPRINT_API_KEY}&ref=${ref}&email=${encodeURIComponent(email)}`;
+                        window.location.href = payUrl;
                       }}
                     >
-                      <i className="fa-solid fa-copy" /> Copy
+                      {payLoading ? (
+                        <><i className="fa-solid fa-spinner fa-spin" aria-hidden /> Redirecting…</>
+                      ) : vaLoading ? (
+                        <><i className="fa-solid fa-spinner fa-spin" aria-hidden /> Updating…</>
+                      ) : selectedPayment === 1 ? (
+                        virtualAccount ? (
+                          <><i className="fa-solid fa-rotate" aria-hidden /> Refresh details for ₦{fundAmountNaira.toLocaleString("en-NG")}</>
+                        ) : (
+                          <><i className="fa-solid fa-building-columns" aria-hidden /> Get account number</>
+                        )
+                      ) : (
+                        <><i className="fa-solid fa-lock" aria-hidden /> Pay ₦{fundAmountNaira.toLocaleString("en-NG")} with SprintPay</>
+                      )}
                     </button>
-                  </div>
-                  <p className="funds-va-label" style={{ marginTop: 14, marginBottom: 0 }}>
-                    Your virtual account is permanent. Use it whenever you add funds.
-                  </p>
-                </div>
-              )}
-            </>
+
+                    <p className="fund-trust">
+                      <i className="fa-solid fa-clock" aria-hidden />
+                      Most top-ups credit instantly after the provider confirms your payment.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
           )}
-
-          <button
-            type="button"
-            className="funds-cta"
-            disabled={payLoading || vaLoading}
-            onClick={async () => {
-              const amount = customAmount
-                ? Number(customAmount)
-                : selectedPreset ? Number(selectedPreset.replace(/[^\d]/g, "")) : 0;
-              if (!amount || amount < 100) {
-                toast.error("Minimum amount is ₦100");
-                return;
-              }
-              if (selectedPayment === 1) {
-                if (!virtualAccount) {
-                  setVaModalOpen(true);
-                  return;
-                }
-                setVaLoading(true);
-                try {
-                  const json = await api<{ account_no?: string; account_name?: string; bank_name?: string; amount?: number }>("/virtual-account", {
-                    method: "POST",
-                    body: JSON.stringify({ amount }),
-                  });
-                  if (json.account_no) {
-                    setVirtualAccount({
-                      account_no: json.account_no,
-                      account_name: json.account_name ?? "",
-                      bank_name: json.bank_name ?? "SprintPay",
-                      amount: json.amount ?? amount,
-                    });
-                    toast.success("Account details ready. Transfer the amount to credit your wallet.");
-                  }
-                } catch (e) {
-                  const msg = (e as { message?: string })?.message || "Something went wrong. Try again.";
-                  toast.error(msg);
-                } finally {
-                  setVaLoading(false);
-                }
-                return;
-              }
-              const SPRINT_API_KEY = (import.meta.env.VITE_SPRINTPAY_API_KEY || "").trim();
-              if (!SPRINT_API_KEY) {
-                toast.error("SprintPay key not set. Add VITE_SPRINTPAY_API_KEY to your .env.");
-                return;
-              }
-              setPayLoading(true);
-              const ref = `sp-${userId.slice(0, 8)}-${Date.now()}`;
-              const payUrl = `https://web.sprintpay.online/pay?amount=${amount}&key=${SPRINT_API_KEY}&ref=${ref}&email=${encodeURIComponent(email)}`;
-              window.location.href = payUrl;
-            }}
-          >
-            {payLoading
-              ? "Redirecting..."
-              : vaLoading
-              ? "Getting account..."
-              : selectedPayment === 1
-              ? (virtualAccount ? "Update amount to pay" : "Get account details →")
-              : `Pay ₦${(customAmount ? Number(customAmount) : selectedPreset ? Number(selectedPreset.replace(/[^\d]/g, "")) : 0).toLocaleString()} via SprintPay →`
-            }
-          </button>
-
-          <div className="funds-info-box" style={{ marginTop: 20 }}>
-            <strong>⏳ Processing</strong> — SprintPay and Virtual Account both credit your wallet instantly after payment.
-          </div>
-        </>
-      )}
-    </div>
-  </div>
-)}
 
           {/* SUPPORT */}
           {activePanel === "support" && (
