@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AccountLogController;
 use App\Http\Controllers\Api\BroadcastMessageController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\BankDetailController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\ManualPaymentController;
@@ -60,6 +61,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/vtu/airtime', [VtuController::class, 'airtime']);
     Route::get('/vtu/catalog/data-networks', [VtuController::class, 'catalogDataNetworks']);
     Route::get('/vtu/catalog/data-variations', [VtuController::class, 'catalogDataVariations']);
+    Route::get('/vtu/catalog/cable-plans', [VtuController::class, 'catalogCablePlans']);
+    Route::get('/vtu/catalog/electricity-variations', [VtuController::class, 'catalogElectricityVariations']);
     Route::post('/vtu/data', [VtuController::class, 'data']);
     Route::get('/vtu/cable/validate', [VtuController::class, 'validateCable']);
     Route::post('/vtu/cable/buy', [VtuController::class, 'buyCable']);
@@ -72,6 +75,10 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
     Route::get('/profiles', [ProfileController::class, 'adminIndex']);
     Route::patch('/profiles/{profile}/block', [ProfileController::class, 'toggleBlock']);
+    Route::post('/users', [AdminUserController::class, 'store']);
+    Route::put('/users/{user}', [AdminUserController::class, 'update']);
+    Route::delete('/users/{user}', [AdminUserController::class, 'destroy']);
+    Route::post('/users/{user}/impersonate', [AdminUserController::class, 'impersonate']);
     Route::get('/wallets', [WalletController::class, 'adminIndex']);
     Route::post('/wallets/credit', [WalletController::class, 'credit']);
     Route::get('/orders', [OrderController::class, 'adminIndex']);
@@ -85,6 +92,7 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::put('/categories/{category}', [CategoryController::class, 'update']);
     Route::delete('/categories/{category}', [CategoryController::class, 'destroy']);
+    Route::patch('/categories/{category}/toggle', [CategoryController::class, 'toggle']);
     Route::post('/categories/upload', [CategoryController::class, 'upload']);
     Route::get('/transactions', [TransactionController::class, 'index']);
     Route::get('/user-roles', [UserRoleController::class, 'index']);
@@ -114,4 +122,5 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::delete('/bank-details/{bankDetail}', [BankDetailController::class, 'destroy']);
     Route::get('/site-settings', [SiteSettingController::class, 'adminIndex']);
     Route::put('/site-settings', [SiteSettingController::class, 'update']);
+    Route::post('/site-settings/upload-logo', [SiteSettingController::class, 'uploadLogo']);
 });

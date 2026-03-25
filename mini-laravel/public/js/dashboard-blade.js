@@ -57,7 +57,148 @@
   }
 
   function siteName() {
-    return ($("#appDashboard") && $("#appDashboard").getAttribute("data-site-name")) || "Store";
+    var fromAttr = ($("#appDashboard") && $("#appDashboard").getAttribute("data-site-name")) || "";
+    var fromSettings = siteSettings && siteSettings.site_name ? String(siteSettings.site_name) : "";
+    return (fromSettings || fromAttr || "Store").trim();
+  }
+
+  function featureOn(key, def) {
+    var v = siteSettings ? siteSettings[key] : undefined;
+    if (v === undefined || v === null || v === "") return !!def;
+    var s = String(v).trim().toLowerCase();
+    return s === "1" || s === "true" || s === "yes" || s === "on";
+  }
+
+  function applyBranding() {
+    // Site name
+    var name = siteName();
+    var el = document.getElementById("brandName");
+    if (el) el.textContent = name;
+    var title = document.getElementById("topbarTitle");
+    if (title && title.textContent && title.textContent.trim() === "") title.textContent = name;
+
+    // Site logo (optional)
+    var logo = siteSettings && siteSettings.site_logo ? String(siteSettings.site_logo).trim() : "";
+    var img = document.getElementById("brandLogoImg");
+    var fb = document.getElementById("brandLogoFallback");
+    if (img && fb) {
+      if (!logo) {
+        img.style.display = "none";
+        img.removeAttribute("src");
+        fb.style.display = "inline-flex";
+      } else {
+        img.src = resolveImg(logo);
+        img.style.display = "inline-flex";
+        fb.style.display = "none";
+      }
+    }
+  }
+
+  function applyThemePreset() {
+    var preset = (siteSettings && siteSettings.theme_preset ? String(siteSettings.theme_preset) : "emerald").toLowerCase();
+    var root = document.documentElement;
+    var presets = {
+      emerald: { green: "152 70% 45%", greenDim: "152 60% 35%", greenBorder: "152 45% 28%", blue: "216 92% 60%", blueLight: "216 90% 96%" },
+      blue: { green: "217 91% 60%", greenDim: "217 80% 48%", greenBorder: "217 50% 28%", blue: "217 91% 60%", blueLight: "216 90% 96%" },
+      purple: { green: "266 86% 62%", greenDim: "266 70% 52%", greenBorder: "266 45% 28%", blue: "266 86% 62%", blueLight: "268 85% 96%" },
+      orange: { green: "24 95% 53%", greenDim: "24 85% 45%", greenBorder: "24 50% 28%", blue: "24 95% 53%", blueLight: "26 95% 96%" },
+    };
+    var p = presets[preset] || presets.emerald;
+    root.style.setProperty("--db-green", p.green);
+    root.style.setProperty("--db-green-dim", p.greenDim);
+    root.style.setProperty("--db-green-border", p.greenBorder);
+    root.style.setProperty("--db-blue", p.blue);
+    root.style.setProperty("--db-blue-light", p.blueLight);
+  }
+
+  function applyFeatureFlags() {
+    // Panels/nav visibility
+    var storeOn = featureOn("feature_store_enabled", true);
+    var fundsOn = featureOn("feature_add_funds_enabled", true);
+    var vtuOn = featureOn("feature_vtu_enabled", true);
+    var supportOn = featureOn("feature_support_enabled", true);
+    var quickOn = featureOn("feature_quick_services_enabled", true);
+
+    function togglePanel(panelId, enabled) {
+      $all('.dash-nav-item[data-panel="' + panelId + '"]').forEach(function (b) {
+        b.style.display = enabled ? "" : "none";
+      });
+      var p = document.querySelector('.dash-panel[data-panel-id="' + panelId + '"]') || document.getElementById("panel-" + panelId);
+      if (p) p.style.display = enabled ? "" : "none";
+    }
+
+    // store related
+    togglePanel("home", true);
+    togglePanel("categories", storeOn);
+    togglePanel("category-detail", storeOn);
+
+    // add funds
+    togglePanel("add-funds", fundsOn);
+
+    // support
+    togglePanel("support", supportOn);
+
+    // vtu panels
+    togglePanel("airtime", vtuOn);
+    togglePanel("data", vtuOn);
+    togglePanel("cable-tv", vtuOn);
+    togglePanel("electricity", vtuOn);
+    togglePanel("sms-verify", vtuOn);
+
+    // If current panel is disabled, bounce to home.
+    var active = document.querySelector(".dash-panel:not([hidden])");
+    if (active) {
+      var id = active.getAttribute("data-panel-id");
+      if (id === "categories" || id === "category-detail") {
+        if (!storeOn) switchPanel("home");
+      } else if (id === "add-funds" && !fundsOn) {
+        switchPanel("home");
+      } else if ((id === "airtime" || id === "data" || id === "cable-tv" || id === "electricity") && !vtuOn) {
+        switchPanel("home");
+      } else if (id === "support" && !supportOn) {
+        switchPanel("home");
+      }
+    }
+
+    // Funding-method toggles inside Add Funds
+    var vaOn = featureOn("feature_virtual_account_enabled", true);
+    var spOn = featureOn("feature_sprintpay_pay_enabled", true);
+    var btnSp = document.getElementById("fundMethodSprintpay");
+    var btnVa = document.getElementById("fundMethodVa");
+    if (btnSp) btnSp.style.display = spOn ? "" : "none";
+    if (btnVa) btnVa.style.display = vaOn ? "" : "none";
+    if (fundPayMethod === "sprintpay" && !spOn) fundPayMethod = vaOn ? "va" : "sprintpay";
+    if (fundPayMethod === "va" && !vaOn) fundPayMethod = spOn ? "sprintpay" : "va";
+    syncFundUi();
+
+    // Quick services: show only cards for enabled destinations
+    var quickMap = {
+      "airtime": vtuOn,
+      "data": vtuOn,
+      "electricity": vtuOn,
+      "cable-tv": vtuOn,
+      "sms-verify": vtuOn,
+      "add-funds": fundsOn,
+      "categories": storeOn,
+      "referral": true
+    };
+    $all(".bliss-q-card[data-panel]").forEach(function (btn) {
+      var panel = btn.getAttribute("data-panel") || "";
+      var visible = quickMap.hasOwnProperty(panel) ? !!quickMap[panel] : true;
+      btn.style.display = quickOn && visible ? "" : "none";
+    });
+    var quickGrid = document.getElementById("quickServicesGrid");
+    var quickKicker = document.getElementById("quickServicesKicker");
+    var quickTitle = document.getElementById("quickServicesTitle");
+    if (!quickOn) {
+      if (quickGrid) quickGrid.style.display = "none";
+      if (quickKicker) quickKicker.style.display = "none";
+      if (quickTitle) quickTitle.style.display = "none";
+    } else {
+      if (quickGrid) quickGrid.style.display = "";
+      if (quickKicker) quickKicker.style.display = "";
+      if (quickTitle) quickTitle.style.display = "";
+    }
   }
 
   function fmtShort(n) {
@@ -375,6 +516,69 @@
     modalProduct = null;
   }
 
+  function openPurchaseSuccessModal(productTitle, purchasedAccounts) {
+    var modal = document.getElementById("purchaseSuccessModal");
+    var list = document.getElementById("purchaseSuccessLogs");
+    var title = document.getElementById("purchaseSuccessTitle");
+    var desc = document.getElementById("purchaseSuccessDesc");
+    if (!modal || !list) return;
+
+    title && (title.textContent = (productTitle || "Purchase") + " delivered");
+    var rows = Array.isArray(purchasedAccounts) ? purchasedAccounts : [];
+    desc &&
+      (desc.textContent =
+        rows.length > 0
+          ? "Your purchased account details are below. Keep them safe."
+          : "Purchase completed. Details will appear in your orders.");
+
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.innerHTML = '<div class="purchase-success-log-item"><div class="purchase-success-log-title">No account details were returned.</div></div>';
+    } else {
+      rows.forEach(function (row, i) {
+        var login = row && row.login ? String(row.login) : "";
+        var password = row && row.password ? String(row.password) : "";
+        var accountLine = (login || "") + "\t" + (password || "");
+        var wrap = document.createElement("div");
+        wrap.className = "purchase-success-log-item";
+        wrap.innerHTML =
+          '<div class="purchase-success-log-top"><span class="purchase-success-log-title">Account #' +
+          (i + 1) +
+          '</span><button type="button" class="purchase-success-log-copy" data-copy="' +
+          encodeURIComponent(accountLine) +
+          '">Copy</button></div>' +
+          '<div class="purchase-success-cred"><strong>account:</strong> ' +
+          escapeHtml(accountLine || "—") +
+          "</div>";
+        list.appendChild(wrap);
+      });
+    }
+
+    list.querySelectorAll("button[data-copy]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var raw = decodeURIComponent(btn.getAttribute("data-copy") || "");
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(raw).catch(function () {});
+        }
+        btn.textContent = "Copied";
+        setTimeout(function () {
+          btn.textContent = "Copy";
+        }, 900);
+      });
+    });
+
+    modal.hidden = false;
+    modal.setAttribute("aria-hidden", "false");
+  }
+
+  function closePurchaseSuccessModal() {
+    var modal = document.getElementById("purchaseSuccessModal");
+    if (modal) {
+      modal.hidden = true;
+      modal.setAttribute("aria-hidden", "true");
+    }
+  }
+
   async function confirmPurchase() {
     if (!modalProduct) return;
     var err = $("#purchaseErr");
@@ -385,6 +589,7 @@
       return;
     }
     try {
+      var boughtTitle = modalProduct.title || "Purchase";
       var res = await miniApi("/purchase", {
         method: "POST",
         body: JSON.stringify({ product_id: modalProduct.id, quantity: qty }),
@@ -397,7 +602,7 @@
       updateBalanceUI();
       closePurchaseModal();
       await loadUserData();
-      alert("Purchase successful! Check My Orders for credentials.");
+      openPurchaseSuccessModal(boughtTitle, res.purchased_accounts || []);
     } catch (e) {
       err.textContent = e.message || "Purchase failed";
     }
@@ -589,6 +794,10 @@
     products = Array.isArray(prods) ? prods : [];
     messages = Array.isArray(msgs) ? msgs : [];
     siteSettings = ss && typeof ss === "object" ? ss : {};
+
+    applyThemePreset();
+    applyBranding();
+    applyFeatureFlags();
 
     try {
       var u = await miniApi("/user");
@@ -1237,12 +1446,31 @@
       document.getElementById("purchaseModal").addEventListener("click", function (e) {
         if (e.target === e.currentTarget) closePurchaseModal();
       });
+    $("#purchaseSuccessClose") &&
+      $("#purchaseSuccessClose").addEventListener("click", function () {
+        closePurchaseSuccessModal();
+      });
+    $("#purchaseSuccessDone") &&
+      $("#purchaseSuccessDone").addEventListener("click", function () {
+        closePurchaseSuccessModal();
+      });
+    $("#purchaseSuccessOrders") &&
+      $("#purchaseSuccessOrders").addEventListener("click", function () {
+        closePurchaseSuccessModal();
+        switchPanel("orders");
+      });
+    document.getElementById("purchaseSuccessModal") &&
+      document.getElementById("purchaseSuccessModal").addEventListener("click", function (e) {
+        if (e.target === e.currentTarget) closePurchaseSuccessModal();
+      });
 
     document.addEventListener("keydown", function (e) {
       if (e.key !== "Escape") return;
       if (document.getElementById("rulesModal") && !document.getElementById("rulesModal").hidden) closeRulesModal();
       var pm = document.getElementById("purchaseModal");
       if (pm && !pm.hidden) closePurchaseModal();
+      var psm = document.getElementById("purchaseSuccessModal");
+      if (psm && !psm.hidden) closePurchaseSuccessModal();
       var fvm = document.getElementById("fundVaModal");
       if (fvm && !fvm.hidden) closeFundVaModal();
     });

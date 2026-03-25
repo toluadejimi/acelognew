@@ -14,6 +14,11 @@ use Illuminate\Support\Str;
  */
 class SprintPayVtuService
 {
+    public function configured(): bool
+    {
+        return $this->webkey() !== '' && $this->authToken() !== '';
+    }
+
     public function isMock(): bool
     {
         return (bool) config('services.sprintpay.vtu_mock', false);
@@ -39,13 +44,15 @@ class SprintPayVtuService
             return ['_error' => 'not_configured', '_message' => 'SPRINTPAY_VTU_ENABLED is false or SprintPay token missing.'];
         }
 
-        $token = config('services.sprintpay.token');
+        $token = $this->authToken();
         if ($token === null || $token === '') {
             return ['_error' => 'not_configured', '_message' => 'Set SPRINTPAY_API_TOKEN (or SPRINTPAY_API_KEY) for VTU calls.'];
         }
 
         $base = rtrim((string) config('services.sprintpay.base_url'), '/');
         $url = $base.'/'.ltrim($path, '/');
+
+        $payload = $this->attachWebkeyToBody($payload);
 
         $response = Http::timeout((int) config('services.sprintpay.vtu_timeout', 90))
             ->withHeaders([
@@ -81,13 +88,15 @@ class SprintPayVtuService
             return ['_error' => 'not_configured', '_message' => 'SPRINTPAY_VTU_ENABLED is false or SprintPay token missing.'];
         }
 
-        $token = config('services.sprintpay.token');
+        $token = $this->authToken();
         if ($token === null || $token === '') {
             return ['_error' => 'not_configured', '_message' => 'Set SPRINTPAY_API_TOKEN (or SPRINTPAY_API_KEY) for VTU calls.'];
         }
 
         $base = rtrim((string) config('services.sprintpay.base_url'), '/');
         $url = $base.'/'.ltrim($path, '/');
+
+        $query = $this->attachWebkeyToQuery($query);
 
         $response = Http::timeout((int) config('services.sprintpay.vtu_timeout', 90))
             ->withHeaders(['Accept' => 'application/json'])
@@ -121,8 +130,8 @@ class SprintPayVtuService
             return ['_error' => 'not_configured', '_message' => 'VTU catalog is disabled (SPRINTPAY_VTU_CATALOG_ENABLED).'];
         }
 
-        $token = config('services.sprintpay.token');
-        $merchantKey = config('services.sprintpay.key');
+        $token = $this->authToken();
+        $merchantKey = $this->webkey();
         if (($merchantKey === null || $merchantKey === '') && ($token === null || $token === '')) {
             return ['_error' => 'not_configured', '_message' => 'Set SPRINTPAY_API_KEY (public key) and/or SPRINTPAY_API_TOKEN for catalog GET requests.'];
         }
@@ -130,10 +139,7 @@ class SprintPayVtuService
         $base = rtrim((string) config('services.sprintpay.base_url'), '/');
         $url = $base.'/'.ltrim($path, '/');
 
-        $q = $query;
-        if (($merchantKey !== null && $merchantKey !== '') && ! isset($q['key'])) {
-            $q['key'] = $merchantKey;
-        }
+        $q = $this->attachWebkeyToQuery($query);
 
         $http = Http::timeout((int) config('services.sprintpay.vtu_timeout', 90))
             ->withHeaders(['Accept' => 'application/json']);
@@ -153,6 +159,40 @@ class SprintPayVtuService
         }
 
         return $response->json() ?? [];
+    }
+
+    /**
+     * SprintPay responses can be inconsistent across products; normalize success checks.
+     *
+     * @param  array<string, mixed>  $body
+     */
+    public function responseIndicatesSuccess(array $body): bool
+    {
+        if ($this->isMock()) {
+            return true;
+        }
+        if (($body['success'] ?? null) === true) {
+            return true;
+        }
+        $status = strtolower((string) ($body['status'] ?? ''));
+        if (in_array($status, ['success', 'successful', 'ok', '1', 'true'], true)) {
+            return true;
+        }
+        if ((string) ($body['code'] ?? '') === '0') {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     */
+    public function extractMessage(array $body, string $fallback = 'Request failed'): string
+    {
+        $msg = $body['message'] ?? $body['error'] ?? $body['msg'] ?? $fallback;
+
+        return is_string($msg) && $msg !== '' ? $msg : $fallback;
     }
 
     /**
@@ -215,5 +255,43 @@ class SprintPayVtuService
             'address' => 'Mock address, Lagos',
             'data' => array_merge(['mock' => true, 'path' => $path], $query),
         ];
+    }
+
+    private function authToken(): string
+    {
+        return (string) (config('services.sprintpay.token') ?? '');
+    }
+
+    private function webkey(): string
+    {
+        return (string) (config('services.sprintpay.webkey') ?? config('services.sprintpay.key') ?? '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $query
+     * @return array<string, mixed>
+     */
+    private function attachWebkeyToQuery(array $query): array
+    {
+        $key = $this->webkey();
+        if ($key !== '' && ! isset($query['key'])) {
+            $query['key'] = $key;
+        }
+
+        return $query;
+    }
+
+    /**
+     * @param  array<string, mixed>  $body
+     * @return array<string, mixed>
+     */
+    private function attachWebkeyToBody(array $body): array
+    {
+        $key = $this->webkey();
+        if ($key !== '' && ! isset($body['key'])) {
+            $body['key'] = $key;
+        }
+
+        return $body;
     }
 }

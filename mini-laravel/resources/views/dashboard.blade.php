@@ -143,7 +143,11 @@
 
   <aside class="dash-sidebar bliss-sidebar-compact" id="dashSidebar">
     <div class="sidebar-logo" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-      <div class="logo-mark">{{ config('app.name') }}</div>
+      <div class="logo-mark" style="display:flex;align-items:center;gap:10px;">
+        <span id="brandLogoFallback" aria-hidden="true" style="width:34px;height:34px;border-radius:12px;background:rgba(15,23,42,.06);display:inline-flex;align-items:center;justify-content:center;font-weight:800;">{{ mb_substr(config('app.name'), 0, 1) }}</span>
+        <img id="brandLogoImg" alt="" style="width:34px;height:34px;border-radius:12px;object-fit:cover;display:none;" />
+        <span id="brandName">{{ config('app.name') }}</span>
+      </div>
     </div>
 
     <span id="dashBalance" hidden aria-hidden="true"></span>
@@ -252,9 +256,9 @@
             <button type="button" class="bliss-add-money" data-panel="add-funds">+ Add money</button>
           </div>
 
-          <p class="bliss-section-kicker">Shortcuts</p>
-          <h3 class="bliss-section-title">Quick services</h3>
-          <div class="bliss-quick-grid">
+          <p class="bliss-section-kicker" id="quickServicesKicker">Shortcuts</p>
+          <h3 class="bliss-section-title" id="quickServicesTitle">Quick services</h3>
+          <div class="bliss-quick-grid" id="quickServicesGrid">
             <button type="button" class="bliss-q-card" data-panel="airtime">
               <span class="bliss-q-icon bliss-t-indigo"><i class="fa-solid fa-mobile-screen" aria-hidden="true"></i></span>
               <h4>Airtime</h4>
@@ -682,6 +686,23 @@
     </div>
     <button type="button" class="btn-confirm" id="btnConfirmPurchase">Confirm purchase</button>
     <p id="purchaseErr" class="dash-msg err"></p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="purchaseSuccessModal" hidden>
+  <div class="modal purchase-success-modal">
+    <button type="button" class="modal-close" id="purchaseSuccessClose">✕</button>
+    <div class="purchase-success-head">
+      <img src="/images/purchase-success.svg" alt="Purchase successful" class="purchase-success-hero-img" />
+      <div class="modal-tag">Purchase successful</div>
+      <h2 class="modal-title-text" id="purchaseSuccessTitle">Your account is ready</h2>
+      <p class="modal-desc-text" id="purchaseSuccessDesc">Copied credentials are available below. Keep them private.</p>
+    </div>
+    <div id="purchaseSuccessLogs" class="purchase-success-logs"></div>
+    <div class="purchase-success-actions">
+      <button type="button" class="btn-secondary" id="purchaseSuccessOrders">Go to Orders</button>
+      <button type="button" class="btn-confirm" id="purchaseSuccessDone">Done</button>
+    </div>
   </div>
 </div>
 

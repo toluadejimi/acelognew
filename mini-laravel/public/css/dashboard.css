@@ -1,3 +1,13 @@
+/* Modern typography system */
+:root {
+  --font-modern: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+.dashboard-layout,
+.dashboard-layout :is(h1, h2, h3, h4, h5, h6, p, span, label, button, input, textarea, select, th, td, a) {
+  font-family: var(--font-modern);
+}
+
 /* ═══════════════ SKELETON LOADING ═══════════════ */
 .skeleton {
   background: linear-gradient(90deg,
@@ -4487,6 +4497,12 @@ textarea.dash-form-input {
   box-shadow: 0 20px 60px hsl(220 70% 25% / 0.2);
 }
 
+/* Popup typography */
+.modal,
+.modal :is(h1, h2, h3, h4, h5, h6, p, span, label, button, input, textarea, select, a) {
+  font-family: var(--font-modern);
+}
+
 @keyframes modalIn {
   from {
     opacity: 0;
@@ -6234,6 +6250,11 @@ textarea.dash-form-input {
   border: 1px solid hsl(var(--db-border));
 }
 
+.details-modal,
+.details-modal :is(h1, h2, h3, h4, h5, h6, p, span, label, button, input, textarea, select, a) {
+  font-family: var(--font-modern);
+}
+
 .details-modal-header {
   padding: 24px;
   background: hsl(var(--db-blue));
@@ -7332,4 +7353,73 @@ textarea.dash-form-input {
     animation: none;
     opacity: 0.7;
   }
+}
+
+/* Purchase success credentials modal */
+.purchase-success-modal {
+  max-width: 620px;
+}
+
+.purchase-success-head {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.purchase-success-hero-img {
+  width: 190px;
+  height: auto;
+  margin: 2px auto 10px;
+  display: block;
+}
+
+.purchase-success-logs {
+  max-height: 260px;
+  overflow: auto;
+  border: 1px solid hsl(var(--db-border));
+  border-radius: 14px;
+  background: hsl(var(--db-bg));
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.purchase-success-log-item {
+  border: 1px solid hsl(var(--db-border));
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.purchase-success-log-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 8px;
+}
+
+.purchase-success-log-title {
+  font-size: 12px;
+  color: hsl(var(--db-text-muted));
+}
+
+.purchase-success-log-copy {
+  border: 1px solid hsl(var(--db-border));
+  background: hsl(var(--db-bg));
+  border-radius: 9px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.purchase-success-cred {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.purchase-success-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
 }

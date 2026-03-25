@@ -9,6 +9,7 @@
   --admin-text: 210 25% 20%;
   --admin-muted: 210 15% 55%;
   --admin-border: 210 20% 92%;
+  --font-modern: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 [data-theme="dark"] {
@@ -30,8 +31,12 @@
   min-height: 100vh;
   background: hsl(var(--admin-bg));
   color: hsl(var(--admin-text));
-  font-family: "Inter", sans-serif;
+  font-family: var(--font-modern);
   font-size: 15.5px;
+}
+
+.admin-layout :is(h1, h2, h3, h4, h5, h6, p, span, label, button, input, textarea, select, th, td, a) {
+  font-family: var(--font-modern);
 }
 
 /* ── Sidebar ── */
@@ -455,6 +460,13 @@
   padding: 16px;
 }
 
+/* Ensure hidden overlays never trap the page */
+.admin-modal-overlay[hidden] {
+  display: none !important;
+  pointer-events: none;
+  visibility: hidden;
+}
+
 .admin-modal {
   background: hsl(var(--admin-card));
   border-radius: 16px;
@@ -465,6 +477,11 @@
   overflow-y: auto;
   position: relative;
   box-shadow: 0 20px 60px hsl(0 0% 0% / 0.2);
+}
+
+.admin-modal,
+.admin-modal :is(h1, h2, h3, h4, h5, h6, p, span, label, button, input, textarea, select, a) {
+  font-family: var(--font-modern);
 }
 
 .admin-modal h3 {

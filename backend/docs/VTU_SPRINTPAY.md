@@ -6,8 +6,10 @@ End users buy **airtime, data, cable TV, and electricity** from your app. Your *
 
 | Variable | Purpose |
 |----------|---------|
+| `WEBKEY` | SprintPay merchant key sent as `key` on merchant/vas and catalog calls |
 | `SPRINTPAY_API_BASE` | API root, default `https://web.sprintpay.online/api` |
-| `SPRINTPAY_API_TOKEN` | Bearer token (or reuse `SPRINTPAY_API_KEY` if that is your JWT/API key) |
+| `SPRINTPAY_WEBHOOK_SECRET` | Used for webhook validation and default Bearer token for merchant/vas calls |
+| `SPRINTPAY_API_TOKEN` | Optional explicit Bearer token override (otherwise falls back to `SPRINTPAY_WEBHOOK_SECRET`) |
 | `SPRINTPAY_VTU_ENABLED` | `true` to send real HTTP requests to SprintPay |
 | `SPRINTPAY_VTU_MOCK` | `true` to simulate success **without** calling SprintPay (UI / wallet flow testing) |
 | `SPRINTPAY_VTU_PATH_*` | Override path segments if SprintPay’s docs use different URLs |
@@ -19,7 +21,11 @@ End users buy **airtime, data, cable TV, and electricity** from your app. Your *
 | Method | Route | Description |
 |--------|--------|-------------|
 | POST | `/api/vtu/airtime` | `network`, `phone`, `amount` |
-| POST | `/api/vtu/data` | `network`, `phone`, `amount`, optional `plan_code` |
+| GET | `/api/vtu/catalog/data-networks` | Proxy of SprintPay `GET /get-data` |
+| GET | `/api/vtu/catalog/data-variations` | Proxy of SprintPay `GET /get-data-variations?network=...` |
+| GET | `/api/vtu/catalog/cable-plans` | Proxy of SprintPay `GET /cable-plan` |
+| GET | `/api/vtu/catalog/electricity-variations` | Proxy of SprintPay `GET /get-electricity-variations` |
+| POST | `/api/vtu/data` | `network`, `phone`, `amount`, optional `variation_code`, `service_id`, `plan_code` |
 | GET | `/api/vtu/cable/validate` | `provider`, `smartcard_number` |
 | POST | `/api/vtu/cable/buy` | `provider`, `smartcard_number`, `product_code`, `amount` |
 | GET | `/api/vtu/electricity/validate` | `disco`, `meter_type` (`prepaid`\|`postpaid`), `meter_number` |

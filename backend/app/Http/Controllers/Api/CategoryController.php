@@ -37,8 +37,10 @@ class CategoryController extends Controller
         return response()->json($this->mapCategory($category), 201);
     }
 
-    public function update(Request $request, Category $category): JsonResponse
+    public function update(Request $request, string $category): JsonResponse
     {
+        $category = Category::withTrashed()->findOrFail($category);
+
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:255'],
             'slug' => ['sometimes', 'string'],
@@ -69,8 +71,9 @@ class CategoryController extends Controller
         // Manually move file without calling hashName()/store() (which rely on fileinfo)
         $filename = uniqid('cat_', true) . '.' . $ext;
 
-        // On shared hosting, writing directly into public/storage is often more reliable
-        $targetDir = public_path('storage/category_images');
+        // Keep category/product media inside mini-laravel/public/storage when available.
+        $miniStorageRoot = env('MEDIA_STORAGE_ROOT', base_path('../mini-laravel/public/storage'));
+        $targetDir = rtrim((string) $miniStorageRoot, '/').'/category_images';
         if (! is_dir($targetDir)) {
             @mkdir($targetDir, 0755, true);
         }
@@ -82,15 +85,31 @@ class CategoryController extends Controller
         $file->move($targetDir, $filename);
 
         $path = 'category_images/' . $filename;
-        $url = asset('storage/' . $path);
+        $baseUrl = trim((string) env('MEDIA_PUBLIC_BASE_URL', ''), '/');
+        $url = $baseUrl !== '' ? $baseUrl.'/storage/'.$path : '/storage/'.$path;
 
         return response()->json(['url' => $url]);
     }
 
-    public function destroy(Category $category): JsonResponse
+    public function destroy(string $category): JsonResponse
     {
-        $category->delete();
+        $category = Category::withTrashed()->findOrFail($category);
+
+        $category->forceDelete();
         return response()->json(null, 204);
+    }
+
+    public function toggle(string $category): JsonResponse
+    {
+        $category = Category::withTrashed()->findOrFail($category);
+
+        if ($category->trashed()) {
+            $category->restore();
+        } else {
+            $category->delete();
+        }
+
+        return response()->json($this->mapCategory($category->fresh()));
     }
 
     private function mapCategories($categories): array
@@ -107,8 +126,26 @@ class CategoryController extends Controller
             'display_order' => (int) $c->display_order,
             'emoji' => $c->emoji,
             'icon_url' => $c->icon_url,
-            'image_url' => $c->image_url,
+            'image_url' => $this->normalizeMediaUrl($c->image_url),
+            'is_active' => ! $c->trashed(),
+            'deleted_at' => $c->deleted_at?->toIso8601String(),
             'created_at' => $c->created_at?->toIso8601String(),
         ];
+    }
+
+    private function normalizeMediaUrl(?string $value): ?string
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+        $pos = strpos($value, '/storage/');
+        if ($pos === false) {
+            return $value;
+        }
+
+        $relative = substr($value, $pos);
+        $baseUrl = trim((string) env('MEDIA_PUBLIC_BASE_URL', ''), '/');
+
+        return $baseUrl !== '' ? $baseUrl.$relative : $relative;
     }
 }

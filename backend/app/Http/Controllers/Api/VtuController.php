@@ -53,6 +53,34 @@ class VtuController extends Controller
         return response()->json(['success' => true, 'catalog' => $out]);
     }
 
+    /**
+     * Proxy: SprintPay GET /cable-plan — no purchase.
+     */
+    public function catalogCablePlans(Request $request): JsonResponse
+    {
+        $path = (string) config('services.sprintpay.vtu_catalog_paths.cable_plans', 'cable-plan');
+        $out = $this->sprintPay->catalogGet($path, []);
+        if (isset($out['_error'])) {
+            return $this->vtuErrorResponse($out);
+        }
+
+        return response()->json(['success' => true, 'catalog' => $out]);
+    }
+
+    /**
+     * Proxy: SprintPay GET /get-electricity-variations — no purchase.
+     */
+    public function catalogElectricityVariations(Request $request): JsonResponse
+    {
+        $path = (string) config('services.sprintpay.vtu_catalog_paths.electricity_variations', 'get-electricity-variations');
+        $out = $this->sprintPay->catalogGet($path, []);
+        if (isset($out['_error'])) {
+            return $this->vtuErrorResponse($out);
+        }
+
+        return response()->json(['success' => true, 'catalog' => $out]);
+    }
+
     public function airtime(Request $request): JsonResponse
     {
         $validated = $request->validate([
@@ -234,7 +262,7 @@ class VtuController extends Controller
         if (! $this->vendLooksSuccessful($upstream)) {
             return response()->json([
                 'success' => false,
-                'message' => (string) ($upstream['message'] ?? $upstream['error'] ?? 'VTU request was not successful.'),
+                'message' => $this->sprintPay->extractMessage($upstream, 'VTU request was not successful.'),
                 'provider' => $upstream,
                 'new_balance' => (float) $wallet->balance,
             ], 422);
@@ -255,7 +283,7 @@ class VtuController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => (string) ($upstream['message'] ?? 'Purchase successful.'),
+                'message' => $this->sprintPay->extractMessage($upstream, 'Purchase successful.'),
                 'new_balance' => $newBalance,
                 'provider' => $upstream,
             ]);
@@ -288,19 +316,6 @@ class VtuController extends Controller
      */
     protected function vendLooksSuccessful(array $upstream): bool
     {
-        if ($this->sprintPay->isMock()) {
-            return true;
-        }
-        if (isset($upstream['success']) && $upstream['success'] === true) {
-            return true;
-        }
-        if (isset($upstream['status']) && in_array(strtolower((string) $upstream['status']), ['success', 'successful', 'ok', '1'], true)) {
-            return true;
-        }
-        if (isset($upstream['code']) && (string) $upstream['code'] === '0') {
-            return true;
-        }
-
-        return false;
+        return $this->sprintPay->responseIndicatesSuccess($upstream);
     }
 }

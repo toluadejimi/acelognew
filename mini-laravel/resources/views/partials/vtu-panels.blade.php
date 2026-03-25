@@ -7,7 +7,7 @@
       <div>
         <h2>Airtime</h2>
         <p>Top up any Nigerian GSM line. Amount is debited from your wallet; fulfilment runs on SprintPay → VTpass.</p>
-        <div class="vtu-trust"><i class="fa-solid fa-shield-halved"></i><span>Configure <code>SPRINTPAY_VTU_MOCK=true</code> for safe UI tests, or <code>SPRINTPAY_VTU_ENABLED=true</code> with real API paths for production.</span></div>
+        <div class="vtu-trust"><i class="fa-solid fa-shield-halved"></i><span>Secure wallet debit with provider fulfilment and transaction logging.</span></div>
       </div>
     </div>
     <form class="vtu-form" id="formVtuAirtime">

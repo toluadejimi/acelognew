@@ -66,6 +66,17 @@ class ApiProxyController extends Controller
             }
         }
 
+        // Admin "login as user" flow returns { token, user } as well.
+        if ($request->isMethod('POST') && preg_match('#^admin/users/[^/]+/impersonate$#', $path) === 1 && $status >= 200 && $status < 300) {
+            $json = json_decode($body, true);
+            if (is_array($json) && ! empty($json['token'])) {
+                session([
+                    'api_token' => $json['token'],
+                    'api_user' => $json['user'] ?? null,
+                ]);
+            }
+        }
+
         if ($request->isMethod('POST') && $path === 'auth/logout' && $status >= 200 && $status < 300) {
             session()->forget(['api_token', 'api_user']);
         }

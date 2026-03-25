@@ -84,8 +84,23 @@ class ProductController extends Controller
             return response()->json(['message' => 'Invalid file type. Allowed: jpg, jpeg, png, webp, gif'], 422);
         }
 
-        $path = $file->store('product_images', 'public');
-        $url = asset('storage/' . $path);
+        // Keep category/product media inside mini-laravel/public/storage when available.
+        $miniStorageRoot = env('MEDIA_STORAGE_ROOT', base_path('../mini-laravel/public/storage'));
+        $targetDir = rtrim((string) $miniStorageRoot, '/').'/product_images';
+        if (! is_dir($targetDir)) {
+            @mkdir($targetDir, 0755, true);
+        }
+        if (! is_writable($targetDir)) {
+            return response()->json([
+                'message' => 'Upload directory is not writable on the server.',
+            ], 500);
+        }
+
+        $filename = uniqid('prd_', true).'.'.$ext;
+        $file->move($targetDir, $filename);
+        $path = 'product_images/' . $filename;
+        $baseUrl = trim((string) env('MEDIA_PUBLIC_BASE_URL', ''), '/');
+        $url = $baseUrl !== '' ? $baseUrl.'/storage/'.$path : '/storage/'.$path;
         return response()->json(['url' => $url]);
     }
 
@@ -172,10 +187,26 @@ class ProductController extends Controller
             'platform' => $p->platform,
             'stock' => $stock,
             'is_active' => $p->is_active,
-            'image_url' => $p->image_url,
+            'image_url' => $this->normalizeMediaUrl($p->image_url),
             'sample_link' => $p->sample_link,
             'created_at' => $p->created_at?->toIso8601String(),
             'updated_at' => $p->updated_at?->toIso8601String(),
         ];
+    }
+
+    private function normalizeMediaUrl(?string $value): ?string
+    {
+        if (! is_string($value) || $value === '') {
+            return $value;
+        }
+        $pos = strpos($value, '/storage/');
+        if ($pos === false) {
+            return $value;
+        }
+
+        $relative = substr($value, $pos);
+        $baseUrl = trim((string) env('MEDIA_PUBLIC_BASE_URL', ''), '/');
+
+        return $baseUrl !== '' ? $baseUrl.$relative : $relative;
     }
 }
